@@ -11,6 +11,7 @@ export type GlyphData = {
   xMax: number;
   yMin: number;
   yMax: number;
+  instructions: number[];
   hMetrics: HMetrics;
 };
 
@@ -126,7 +127,10 @@ export default function parseFontData(data: Uint8Array) {
     }
     const numPoints = contours[contours.length - 1] + 1;
     const instructionLength = readUint16();
-    offset += instructionLength;
+    const instructions = [];
+    for (let instri = 0; instri < instructionLength; instri++) {
+      instructions.push(readUint8());
+    }
     const flags: Flags[] = [];
     while (flags.length < numPoints) {
       const currFlags = parseFlags(readUint8());
@@ -155,6 +159,7 @@ export default function parseFontData(data: Uint8Array) {
       yMin,
       xMax,
       yMax,
+      instructions,
       hMetrics: { advanceWidth: 0, lsb: 0 },
     };
   }
@@ -248,6 +253,7 @@ export default function parseFontData(data: Uint8Array) {
   }
 
   const glyphs: GlyphData[] = [];
+  let glyphindex = 0;
   for (const loc of locs) {
     if (loc != null) {
       offset = glyfTable.offset + (locShortFormat ? 2 : 1) * loc;
@@ -260,11 +266,13 @@ export default function parseFontData(data: Uint8Array) {
         xMax: 0,
         yMin: 0,
         yMax: 0,
+        instructions: [],
         hMetrics: {
           advanceWidth: 0,
           lsb: 0,
         },
       });
+      glyphindex++;
     }
   }
 
@@ -375,7 +383,6 @@ export default function parseFontData(data: Uint8Array) {
 
   return {
     numTables,
-    glyfTable: tableDirectory.get("glyf"),
     glyphs,
     unitsPerEm,
     ascender,

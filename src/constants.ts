@@ -19,4 +19,4 @@ export const CONTOUR_POINT_OFF_CURVE_COLOR = "#000088";
 export const CONTOUR_POINT_LINE_WIDTH = 10;
 export const CONTOUR_POINT_RADIUS = 20;
 
-export const FONT_SIZE = 75;
+export const FONT_SIZE = 18;

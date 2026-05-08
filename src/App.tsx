@@ -21,9 +21,11 @@ import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvas2Ref = useRef<HTMLCanvasElement>(null);
+  const canvas3Ref = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
+  const [drawCurves, setDrawCurves] = useState<boolean>(true);
 
   useEffect(() => {
     fetch(defaultFontUrl)
@@ -47,6 +49,12 @@ function App() {
   }, [fileData]);
   const [text, setText] = useState<string>("Hello, world!");
 
+  const firstGlyph = useMemo(() => {
+    const charCode = text.charCodeAt(0) || 0;
+    const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
+    return fontData?.glyphs[glyphIndex];
+  }, [fontData, text]);
+
   function clear(ctx: CanvasRenderingContext2D) {
     const dpr = window.devicePixelRatio || 1;
     ctx.canvas.width = CANVAS_WIDTH_PX * dpr;
@@ -56,90 +64,105 @@ function App() {
     ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
   }
 
-  const drawGlyph = (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
-    // Draw bounding box
-    ctx.fillStyle = BBOX_FILL_COLOR;
-    ctx.fillRect(
-      glyph.xMin,
-      glyph.yMin,
-      glyph.xMax - glyph.xMin,
-      glyph.yMax - glyph.yMin,
-    );
+  const drawGlyph = useCallback(
+    (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
+      // Draw bounding box
+      ctx.fillStyle = BBOX_FILL_COLOR;
+      ctx.fillRect(
+        glyph.xMin,
+        glyph.yMin,
+        glyph.xMax - glyph.xMin,
+        glyph.yMax - glyph.yMin,
+      );
 
-    // Draw glyph
+      // Draw glyph
 
-    ctx.beginPath();
-    let startPointIndex = 0;
-    const impliedOnCurvePoints = [];
-    for (const contour of glyph.contours) {
-      const pointsInContour = glyph.points.slice(startPointIndex, contour + 1);
-      ctx.moveTo(pointsInContour[0].vec.x, pointsInContour[0].vec.y);
+      ctx.beginPath();
+      let startPointIndex = 0;
+      const impliedOnCurvePoints = [];
+      for (const contour of glyph.contours) {
+        const pointsInContour = glyph.points.slice(
+          startPointIndex,
+          contour + 1,
+        );
+        ctx.moveTo(pointsInContour[0].vec.x, pointsInContour[0].vec.y);
 
-      for (let i = 1; i < pointsInContour.length; i++) {
-        const lastPt = pointsInContour[i - 1];
-        const pt = pointsInContour[i];
-        if (!lastPt.onCurve && !pt.onCurve) {
-          const midpoint = lastPt.vec.lerp(pt.vec, 0.5);
-          impliedOnCurvePoints.push(midpoint);
+        for (let i = 1; i < pointsInContour.length; i++) {
+          const lastPt = pointsInContour[i - 1];
+          const pt = pointsInContour[i];
+          if (drawCurves) {
+            if (!lastPt.onCurve && !pt.onCurve) {
+              const midpoint = lastPt.vec.lerp(pt.vec, 0.5);
+              impliedOnCurvePoints.push(midpoint);
+              ctx.quadraticCurveTo(
+                lastPt.vec.x,
+                lastPt.vec.y,
+                midpoint.x,
+                midpoint.y,
+              );
+            } else if (!lastPt.onCurve && pt.onCurve) {
+              ctx.quadraticCurveTo(
+                lastPt.vec.x,
+                lastPt.vec.y,
+                pt.vec.x,
+                pt.vec.y,
+              );
+            } else if (lastPt.onCurve && pt.onCurve) {
+              ctx.lineTo(pt.vec.x, pt.vec.y);
+            }
+          } else {
+            ctx.lineTo(pt.vec.x, pt.vec.y);
+          }
+        }
+        const lastPoint = pointsInContour[pointsInContour.length - 1];
+        const firstPoint = pointsInContour[0];
+        if (lastPoint.onCurve) {
+          ctx.lineTo(firstPoint.vec.x, firstPoint.vec.y);
+        } else {
           ctx.quadraticCurveTo(
-            lastPt.vec.x,
-            lastPt.vec.y,
-            midpoint.x,
-            midpoint.y,
+            lastPoint.vec.x,
+            lastPoint.vec.y,
+            firstPoint.vec.x,
+            firstPoint.vec.y,
           );
-        } else if (!lastPt.onCurve && pt.onCurve) {
-          ctx.quadraticCurveTo(lastPt.vec.x, lastPt.vec.y, pt.vec.x, pt.vec.y);
-        } else if (lastPt.onCurve && pt.onCurve) {
-          ctx.lineTo(pt.vec.x, pt.vec.y);
+        }
+        startPointIndex = contour + 1;
+      }
+      ctx.fillStyle = GLYPH_FILL_COLOR;
+      ctx.strokeStyle = GLYPH_STROKE_COLOR;
+      ctx.lineWidth = GLYPH_LINE_WIDTH;
+      ctx.fill();
+      if (GLYPH_LINE_WIDTH > 0) ctx.stroke();
+
+      if (SHOW_CONTOUR_POINTS) {
+        for (let i = 0; i < glyph.points.length; i++) {
+          const pt = glyph.points[i];
+          ctx.beginPath();
+          ctx.arc(pt.vec.x, pt.vec.y, CONTOUR_POINT_RADIUS, 0, 2 * Math.PI);
+          ctx.fillStyle = pt.onCurve
+            ? CONTOUR_POINT_ON_CURVE_COLOR
+            : CONTOUR_POINT_OFF_CURVE_COLOR;
+          ctx.strokeStyle = ctx.fillStyle;
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.lineWidth = CONTOUR_POINT_LINE_WIDTH;
+        ctx.strokeStyle = CONTOUR_POINT_ON_CURVE_COLOR;
+        for (const impliedOnCurvePoint of impliedOnCurvePoints) {
+          ctx.beginPath();
+          ctx.arc(
+            impliedOnCurvePoint.x,
+            impliedOnCurvePoint.y,
+            CONTOUR_POINT_RADIUS,
+            0,
+            2 * Math.PI,
+          );
+          ctx.stroke();
         }
       }
-      const lastPoint = pointsInContour[pointsInContour.length - 1];
-      const firstPoint = pointsInContour[0];
-      if (lastPoint.onCurve) {
-        ctx.lineTo(firstPoint.vec.x, firstPoint.vec.y);
-      } else {
-        ctx.quadraticCurveTo(
-          lastPoint.vec.x,
-          lastPoint.vec.y,
-          firstPoint.vec.x,
-          firstPoint.vec.y,
-        );
-      }
-      startPointIndex = contour + 1;
-    }
-    ctx.fillStyle = GLYPH_FILL_COLOR;
-    ctx.strokeStyle = GLYPH_STROKE_COLOR;
-    ctx.lineWidth = GLYPH_LINE_WIDTH;
-    ctx.fill();
-    if (GLYPH_LINE_WIDTH > 0) ctx.stroke();
-
-    if (SHOW_CONTOUR_POINTS) {
-      for (let i = 0; i < glyph.points.length; i++) {
-        const pt = glyph.points[i];
-        ctx.beginPath();
-        ctx.arc(pt.vec.x, pt.vec.y, CONTOUR_POINT_RADIUS, 0, 2 * Math.PI);
-        ctx.fillStyle = pt.onCurve
-          ? CONTOUR_POINT_ON_CURVE_COLOR
-          : CONTOUR_POINT_OFF_CURVE_COLOR;
-        ctx.strokeStyle = ctx.fillStyle;
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.lineWidth = CONTOUR_POINT_LINE_WIDTH;
-      ctx.strokeStyle = CONTOUR_POINT_ON_CURVE_COLOR;
-      for (const impliedOnCurvePoint of impliedOnCurvePoints) {
-        ctx.beginPath();
-        ctx.arc(
-          impliedOnCurvePoint.x,
-          impliedOnCurvePoint.y,
-          CONTOUR_POINT_RADIUS,
-          0,
-          2 * Math.PI,
-        );
-        ctx.stroke();
-      }
-    }
-  };
+    },
+    [drawCurves],
+  );
 
   const drawFromFontFile = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
@@ -163,7 +186,66 @@ function App() {
       }
       ctx.translate(glyph?.hMetrics.advanceWidth ?? 0, 0);
     }
-  }, [fontData, text]);
+  }, [drawGlyph, fontData, text]);
+
+  const drawSingleGlyph = useCallback(() => {
+    const ctx = canvas3Ref.current?.getContext("2d");
+    if (!ctx) return;
+    if (!fontData) return;
+
+    ctx.canvas.width = fontData.unitsPerEm;
+    ctx.canvas.height = fontData.unitsPerEm;
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
+
+    ctx.translate(0, fontData.unitsPerEm + fontData.descender);
+    ctx.scale(1, -1);
+    // ctx.scale(0.8, 0.8);
+
+    const glyph = firstGlyph;
+    if (!glyph) return;
+    drawGlyph(ctx, glyph);
+
+    ctx.strokeStyle = "lightgray";
+    ctx.fillStyle = "gray";
+    ctx.lineWidth = 1;
+
+    const xwMin = Math.floor((glyph.xMin * FONT_SIZE) / fontData.unitsPerEm);
+    const xwMax = Math.ceil((glyph.xMax * FONT_SIZE) / fontData.unitsPerEm);
+    const ywMin = Math.floor((glyph.yMin * FONT_SIZE) / fontData.unitsPerEm);
+    const ywMax = Math.ceil((glyph.yMax * FONT_SIZE) / fontData.unitsPerEm);
+    for (let yw = ywMin; yw <= ywMax; yw++) {
+      const gy = (yw * fontData.unitsPerEm) / FONT_SIZE;
+      ctx.beginPath();
+      ctx.moveTo(glyph.xMin, gy);
+      ctx.lineTo(glyph.xMax, gy);
+      ctx.stroke();
+      ctx.fillText(yw.toString(), 0, gy);
+    }
+    for (let xw = xwMin; xw <= xwMax; xw++) {
+      ctx.beginPath();
+      const gx = (xw * fontData.unitsPerEm) / FONT_SIZE;
+      ctx.moveTo(gx, glyph.yMin);
+      ctx.lineTo(gx, glyph.yMax);
+      ctx.stroke();
+      ctx.fillText(xw.toString(), gx, 0);
+    }
+    for (let yw = ywMin; yw < ywMax; yw++) {
+      //   int yg = ((y_orig_world - yw) * 2 - 1) * ttf_head_table->units_per_em /
+      //            (font_size * 2);
+      const yg = Math.floor(
+        ((yw * 2 + 1) * fontData.unitsPerEm) / (FONT_SIZE * 2),
+      );
+      for (let xw = xwMin; xw < xwMax; xw++) {
+        //   int xg = ((xw - x_orig_world) * 2 + 1) * ttf_head_table->units_per_em /
+        //            (font_size * 2);
+        const xg = Math.floor(
+          ((xw * 2 + 1) * fontData.unitsPerEm) / (FONT_SIZE * 2),
+        );
+        ctx.fillRect(xg - 2, yg - 2, 5, 5);
+      }
+    }
+  }, [drawGlyph, firstGlyph, fontData]);
 
   const drawDirectlyToCanvas = useCallback(async () => {
     const ctx = canvas2Ref.current?.getContext("2d");
@@ -173,7 +255,10 @@ function App() {
     if (fontData == null || fileData == null) return;
 
     // 1. Create a FontFace from the raw binary
-    const fontFace = new FontFace("MyUploadedFont", fileData.buffer as ArrayBuffer);
+    const fontFace = new FontFace(
+      "MyUploadedFont",
+      fileData.buffer as ArrayBuffer,
+    );
 
     // 2. Load it (parses the font and makes it ready to use)
     await fontFace.load();
@@ -195,7 +280,8 @@ function App() {
   const draw = useCallback(() => {
     drawFromFontFile();
     drawDirectlyToCanvas();
-  }, [drawDirectlyToCanvas, drawFromFontFile]);
+    drawSingleGlyph();
+  }, [drawDirectlyToCanvas, drawFromFontFile, drawSingleGlyph]);
 
   useEffect(() => {
     draw();
@@ -248,9 +334,35 @@ function App() {
           {fontError}
         </div>
       )}
-      {fontData && <div className="font-mono"></div>}
+      {fontData && (
+        <div className="font-mono">
+          <div>
+            glyph instructions ({firstGlyph?.instructions?.length}):{" "}
+            {firstGlyph?.instructions}
+          </div>
+        </div>
+      )}
+      <div className="flex gap-4 items-baseline">
+        <input
+          name="draw-curves"
+          type="checkbox"
+          checked={drawCurves}
+          onChange={(e) => {
+            setDrawCurves(e.currentTarget.checked);
+          }}
+        />
+        <label>Draw Curves</label>
+      </div>
       <div className="flex flex-col items-start">
-        <div>Custom rendering</div>
+        <div>Single glyph</div>
+        <canvas
+          ref={canvas3Ref}
+          style={{ width: fontData?.unitsPerEm, height: fontData?.unitsPerEm }}
+          className="border-2 border-gray-200 [image-rendering:pixelated]"
+        />
+      </div>
+      <div className="flex flex-col items-start">
+        <div>Canvas path rendering</div>
         <canvas
           ref={canvasRef}
           style={{ width: CANVAS_WIDTH_PX, height: CANVAS_HEIGHT_PX }}

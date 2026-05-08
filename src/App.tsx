@@ -16,6 +16,7 @@ import {
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData, { type GlyphData } from "./parseFontFile";
+import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,6 +24,13 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
+
+  useEffect(() => {
+    fetch(defaultFontUrl)
+      .then((res) => res.arrayBuffer())
+      .then((buffer) => setFileData(new Uint8Array(buffer)))
+      .catch((err) => console.error("Failed to load default font:", err));
+  }, []);
   const [loadedFontName, setLoadedFontName] = useState<string | null>(null);
   const { data: fontData, error: fontError } = useMemo(() => {
     if (fileData == null) return { data: null, error: "no font file selected" };

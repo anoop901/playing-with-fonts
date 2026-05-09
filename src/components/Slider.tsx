@@ -24,7 +24,7 @@ export default function Slider({
         onChange={(e) => onValueChange(Number(e.currentTarget.value))}
         className="grow appearance-none h-1 rounded-full"
         style={{
-          background: `linear-gradient(to right, var(--color-indigo-600) ${pct}%, var(--color-indigo-200) ${pct}%)`,
+          background: `linear-gradient(to right, var(--color-primary) ${pct}%, var(--color-primary-weak) ${pct}%)`,
         }}
         {...props}
       />

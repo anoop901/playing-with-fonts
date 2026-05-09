@@ -8,7 +8,7 @@ export default function Select({
   return (
     <select
       className={
-        "appearance-none focus:outline-none rounded px-2 py-1 border-2 border-gray-200 hover:border-gray-400 focus:border-indigo-600 " +
+        "appearance-none focus:outline-none rounded px-2 py-1 border-2 border-border-weak bg-background-input hover:border-border focus:border-primary " +
         (className ?? "")
       }
       {...props}

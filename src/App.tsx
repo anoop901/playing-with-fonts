@@ -190,15 +190,15 @@ function App() {
   }, [drawGlyphOnPixelGrid]);
 
   const Settings = (
-    <div className="w-80 overflow-hidden border-2 rounded border-gray-200">
+    <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground">
       {/* Header */}
-      <div className="p-2 bg-gray-200">
-        <h2 className="uppercase text-gray-600 font-semibold tracking-wide">
+      <div className="px-4 py-2 bg-background-2 border-b-2 border-border">
+        <h2 className="uppercase text-heading font-semibold tracking-wide">
           Settings
         </h2>
       </div>
 
-      <div className="p-2 flex flex-col gap-4">
+      <div className="px-4 py-2 flex flex-col gap-4 bg-background">
         <Labeled label="Font file">
           <div className="flex flex-col items-start">
             <Button onClick={() => fileInputRef.current?.click()}>
@@ -283,16 +283,8 @@ function App() {
   );
 
   return (
-    <div className="min-h-full flex flex-col items-center justify-center py-4 gap-2">
-      {fontError && (
-        <div className="px-4 py-2 rounded text-red-800 border-2 border-red-800 bg-red-200">
-          {fontError}
-        </div>
-      )}
-      {fontData && <div className="font-mono"></div>}
-      {Settings}
+    <div className="min-h-full flex flex-row items-start justify-center py-4 gap-2">
       <div className="flex flex-col items-start">
-        <div>Single glyph on pixel grid</div>
         <canvas
           ref={canvasRef}
           onPointerDown={(e) => {
@@ -318,8 +310,16 @@ function App() {
             setIsDragging(false);
             e.currentTarget.releasePointerCapture(e.pointerId);
           }}
-          className="border-2 border-gray-200 [image-rendering:pixelated]"
+          className="border-2 rounded border-border bg-background [image-rendering:pixelated]"
         />
+      </div>{" "}
+      <div className="w-80 flex flex-col gap-2 self">
+        {fontError && (
+          <div className="px-4 py-2 rounded text-red-800 border-2 border-red-800 bg-red-200">
+            {fontError}
+          </div>
+        )}
+        {Settings}
       </div>
     </div>
   );

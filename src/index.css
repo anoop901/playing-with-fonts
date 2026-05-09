@@ -7,9 +7,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+@theme {
+  --color-foreground: var(--color-mist-800);
+  --color-heading: var(--color-mist-500);
+  --color-border: var(--color-mist-500);
+  --color-border-weak: var(--color-mist-200);
+  --color-background: var(--color-mist-50);
+  --color-background-2: var(--color-mist-200);
+
+  --color-background-input: var(--color-white);
+
+  --color-primary: var(--color-sky-600);
+  --color-primary-weak: var(--color-sky-200);
 }

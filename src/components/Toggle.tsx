@@ -16,12 +16,10 @@ export default function Toggle({
           onChange={(e) => onCheckedChange(e.currentTarget.checked)}
           className="sr-only peer"
         />
-        <div className="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-indigo-500 transition-colors" />
-        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
+        <div className="w-9 h-5 bg-indigo-200 rounded peer-checked:bg-indigo-600 transition-colors" />
+        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded shadow transition-transform peer-checked:translate-x-4" />
       </div>
-      <span className="text-sm font-medium text-gray-700 select-none">
-        {label}
-      </span>
+      <span className="select-none">{label}</span>
     </label>
   );
 }

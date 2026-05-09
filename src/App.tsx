@@ -190,13 +190,13 @@ function App() {
   }, [drawGlyphOnPixelGrid]);
 
   const Settings = (
-    <div className="w-80 overflow-hidden">
+    <div className="w-80 overflow-hidden border-2 rounded border-amber-600 font-medium">
       {/* Header */}
-      <div className="">
-        <h2 className="">Settings</h2>
+      <div className="p-2 bg-amber-600">
+        <h2 className="uppercase text-white">Settings</h2>
       </div>
 
-      <div className="flex flex-col">
+      <div className="p-2 flex flex-col gap-4">
         <Labeled label="Font file">
           <div className="flex flex-col items-start">
             <Button onClick={() => fileInputRef.current?.click()}>

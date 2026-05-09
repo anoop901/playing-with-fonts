@@ -7,7 +7,7 @@ export const TEXT_COORDS = new Vector2(
   CANVAS_HEIGHT_PX * 0.75,
 );
 
-export const BBOX_FILL_COLOR = "transparent";
+export const BBOX_FILL_COLOR = "#cccccc";
 
 export const GLYPH_STROKE_COLOR = "#4444aa";
 export const GLYPH_FILL_COLOR = "#6666cc";
@@ -20,3 +20,10 @@ export const CONTOUR_POINT_LINE_WIDTH = 10;
 export const CONTOUR_POINT_RADIUS = 20;
 
 export const FONT_SIZE = 18;
+
+export const PIXEL_GRID_SIZE = 16;
+export const PIXEL_GRID_SCALE = 50;
+export const PIXEL_GRID_ORIGIN_X = 2;
+export const PIXEL_GRID_ORIGIN_Y = 14;
+export const PIXEL_GRID_DOT_COLOR = "#333333";
+export const PIXEL_GRIDLINE_COLOR = "#999999";

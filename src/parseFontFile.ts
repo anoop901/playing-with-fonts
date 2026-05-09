@@ -253,7 +253,6 @@ export default function parseFontData(data: Uint8Array) {
   }
 
   const glyphs: GlyphData[] = [];
-  let glyphindex = 0;
   for (const loc of locs) {
     if (loc != null) {
       offset = glyfTable.offset + (locShortFormat ? 2 : 1) * loc;
@@ -272,7 +271,6 @@ export default function parseFontData(data: Uint8Array) {
           lsb: 0,
         },
       });
-      glyphindex++;
     }
   }
 

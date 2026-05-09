@@ -13,6 +13,12 @@ import {
   TEXT_COORDS,
   CONTOUR_POINT_OFF_CURVE_COLOR,
   SHOW_CONTOUR_POINTS,
+  PIXEL_GRID_SIZE,
+  PIXEL_GRID_SCALE,
+  PIXEL_GRID_ORIGIN_Y,
+  PIXEL_GRID_ORIGIN_X,
+  PIXEL_GRID_DOT_COLOR,
+  PIXEL_GRIDLINE_COLOR,
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData, { type GlyphData } from "./parseFontFile";
@@ -26,6 +32,11 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
   const [drawCurves, setDrawCurves] = useState<boolean>(true);
+  const [pixelGridOrigin, setPixelGridOrigin] = useState({
+    x: PIXEL_GRID_ORIGIN_X,
+    y: PIXEL_GRID_ORIGIN_Y,
+  });
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     fetch(defaultFontUrl)
@@ -193,59 +204,50 @@ function App() {
     if (!ctx) return;
     if (!fontData) return;
 
-    ctx.canvas.width = fontData.unitsPerEm;
-    ctx.canvas.height = fontData.unitsPerEm;
+    ctx.canvas.width = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
+    ctx.canvas.height = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
     ctx.resetTransform();
     ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
 
-    ctx.translate(0, fontData.unitsPerEm + fontData.descender);
-    ctx.scale(1, -1);
-    // ctx.scale(0.8, 0.8);
+    ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
+    ctx.save();
+    ctx.translate(pixelGridOrigin.x, pixelGridOrigin.y);
+    const scale = FONT_SIZE / fontData.unitsPerEm;
+    ctx.scale(scale, scale);
+    ctx.scale(1, -1);
     const glyph = firstGlyph;
     if (!glyph) return;
     drawGlyph(ctx, glyph);
+    ctx.restore();
 
-    ctx.strokeStyle = "lightgray";
-    ctx.fillStyle = "gray";
-    ctx.lineWidth = 1;
+    const xwMin = Math.floor(glyph.xMin * scale + pixelGridOrigin.x);
+    const xwMax = Math.ceil(glyph.xMax * scale + pixelGridOrigin.x);
+    const ywMin = Math.floor(-(glyph.yMax * scale) + pixelGridOrigin.y);
+    const ywMax = Math.ceil(-(glyph.yMin * scale) + pixelGridOrigin.y);
 
-    const xwMin = Math.floor((glyph.xMin * FONT_SIZE) / fontData.unitsPerEm);
-    const xwMax = Math.ceil((glyph.xMax * FONT_SIZE) / fontData.unitsPerEm);
-    const ywMin = Math.floor((glyph.yMin * FONT_SIZE) / fontData.unitsPerEm);
-    const ywMax = Math.ceil((glyph.yMax * FONT_SIZE) / fontData.unitsPerEm);
-    for (let yw = ywMin; yw <= ywMax; yw++) {
-      const gy = (yw * fontData.unitsPerEm) / FONT_SIZE;
-      ctx.beginPath();
-      ctx.moveTo(glyph.xMin, gy);
-      ctx.lineTo(glyph.xMax, gy);
-      ctx.stroke();
-      ctx.fillText(yw.toString(), 0, gy);
-    }
-    for (let xw = xwMin; xw <= xwMax; xw++) {
-      ctx.beginPath();
-      const gx = (xw * fontData.unitsPerEm) / FONT_SIZE;
-      ctx.moveTo(gx, glyph.yMin);
-      ctx.lineTo(gx, glyph.yMax);
-      ctx.stroke();
-      ctx.fillText(xw.toString(), gx, 0);
-    }
+    ctx.font = "0.2px monospace";
+    ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
+    ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
+    ctx.lineWidth = 0.03;
+
     for (let yw = ywMin; yw < ywMax; yw++) {
-      //   int yg = ((y_orig_world - yw) * 2 - 1) * ttf_head_table->units_per_em /
-      //            (font_size * 2);
-      const yg = Math.floor(
-        ((yw * 2 + 1) * fontData.unitsPerEm) / (FONT_SIZE * 2),
-      );
       for (let xw = xwMin; xw < xwMax; xw++) {
-        //   int xg = ((xw - x_orig_world) * 2 + 1) * ttf_head_table->units_per_em /
-        //            (font_size * 2);
-        const xg = Math.floor(
-          ((xw * 2 + 1) * fontData.unitsPerEm) / (FONT_SIZE * 2),
-        );
-        ctx.fillRect(xg - 2, yg - 2, 5, 5);
+        ctx.strokeRect(xw, yw, 1, 1);
+        ctx.fillRect(xw + 0.45, yw + 0.45, 0.1, 0.1);
+        ctx.fillText(`${xw},${yw}`, xw + 0.15, yw + 0.25);
       }
     }
-  }, [drawGlyph, firstGlyph, fontData]);
+
+    ctx.save();
+    ctx.translate(pixelGridOrigin.x, pixelGridOrigin.y);
+    ctx.strokeStyle = "red";
+    ctx.fillStyle = "red";
+    ctx.lineWidth = 0.03;
+    ctx.strokeRect(-0.1, -0.1, 0.2, 0.2);
+    ctx.fillText("origin", 0.15, 0);
+    ctx.restore();
+  }, [drawGlyph, firstGlyph, fontData, pixelGridOrigin]);
 
   const drawDirectlyToCanvas = useCallback(async () => {
     const ctx = canvas2Ref.current?.getContext("2d");
@@ -334,14 +336,7 @@ function App() {
           {fontError}
         </div>
       )}
-      {fontData && (
-        <div className="font-mono">
-          <div>
-            glyph instructions ({firstGlyph?.instructions?.length}):{" "}
-            {firstGlyph?.instructions}
-          </div>
-        </div>
-      )}
+      {fontData && <div className="font-mono"></div>}
       <div className="flex gap-4 items-baseline">
         <input
           name="draw-curves"
@@ -354,10 +349,32 @@ function App() {
         <label>Draw Curves</label>
       </div>
       <div className="flex flex-col items-start">
-        <div>Single glyph</div>
+        <div>Single glyph on pixel grid</div>
         <canvas
           ref={canvas3Ref}
-          style={{ width: fontData?.unitsPerEm, height: fontData?.unitsPerEm }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setIsDragging(true);
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
+            const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
+            setPixelGridOrigin({ x, y });
+          }}
+          onPointerMove={(e) => {
+            if (!isDragging) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
+            const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
+            setPixelGridOrigin({ x, y });
+          }}
+          onPointerUp={(e) => {
+            setIsDragging(false);
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+          onPointerCancel={(e) => {
+            setIsDragging(false);
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
           className="border-2 border-gray-200 [image-rendering:pixelated]"
         />
       </div>

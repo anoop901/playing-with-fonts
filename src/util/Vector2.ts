@@ -40,6 +40,10 @@ export class Vector2 {
     return new Vector2(lerp(this.x, that.x, t), lerp(this.y, that.y, t));
   }
 
+  midpoint(that: Vector2) {
+    return this.lerp(that, 0.5);
+  }
+
   static up(distance: number = 1) {
     return new Vector2(0, distance);
   }

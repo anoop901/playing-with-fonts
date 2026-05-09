@@ -3,15 +3,10 @@ import {
   BBOX_FILL_COLOR,
   CANVAS_HEIGHT_PX,
   CANVAS_WIDTH_PX,
-  CONTOUR_POINT_ON_CURVE_COLOR,
-  CONTOUR_POINT_LINE_WIDTH,
-  CONTOUR_POINT_RADIUS,
   FONT_SIZE,
   GLYPH_FILL_COLOR,
   GLYPH_LINE_WIDTH,
   GLYPH_STROKE_COLOR,
-  CONTOUR_POINT_OFF_CURVE_COLOR,
-  SHOW_CONTOUR_POINTS,
   PIXEL_GRID_SIZE,
   PIXEL_GRID_SCALE,
   PIXEL_GRID_ORIGIN_Y,
@@ -54,8 +49,9 @@ function App() {
       };
     }
   }, [fileData]);
-  const [text, setText] = useState<string>("Hello, world!");
+  const [text, setText] = useState<string>("R");
   const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
+  const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
 
   const firstGlyph = useMemo(() => {
     const charCode = text.charCodeAt(0) || 0;
@@ -76,91 +72,106 @@ function App() {
 
       // Draw glyph
 
-      ctx.beginPath();
+      // Put the points of each contour in a separate array
       let startPointIndex = 0;
-      const impliedOnCurvePoints = [];
+      const pointsSplitByContour = [];
       for (const contour of glyph.contours) {
-        const pointsInContour = glyph.points.slice(
-          startPointIndex,
-          contour + 1,
+        pointsSplitByContour.push(
+          glyph.points.slice(startPointIndex, contour + 1),
         );
-        ctx.moveTo(pointsInContour[0].vec.x, pointsInContour[0].vec.y);
-
-        for (let i = 1; i < pointsInContour.length; i++) {
-          const lastPt = pointsInContour[i - 1];
-          const pt = pointsInContour[i];
-          if (drawCurves) {
-            if (!lastPt.onCurve && !pt.onCurve) {
-              const midpoint = lastPt.vec.lerp(pt.vec, 0.5);
-              impliedOnCurvePoints.push(midpoint);
-              ctx.quadraticCurveTo(
-                lastPt.vec.x,
-                lastPt.vec.y,
-                midpoint.x,
-                midpoint.y,
-              );
-            } else if (!lastPt.onCurve && pt.onCurve) {
-              ctx.quadraticCurveTo(
-                lastPt.vec.x,
-                lastPt.vec.y,
-                pt.vec.x,
-                pt.vec.y,
-              );
-            } else if (lastPt.onCurve && pt.onCurve) {
-              ctx.lineTo(pt.vec.x, pt.vec.y);
-            }
-          } else {
-            ctx.lineTo(pt.vec.x, pt.vec.y);
-          }
-        }
-        const lastPoint = pointsInContour[pointsInContour.length - 1];
-        const firstPoint = pointsInContour[0];
-        if (lastPoint.onCurve) {
-          ctx.lineTo(firstPoint.vec.x, firstPoint.vec.y);
-        } else {
-          ctx.quadraticCurveTo(
-            lastPoint.vec.x,
-            lastPoint.vec.y,
-            firstPoint.vec.x,
-            firstPoint.vec.y,
-          );
-        }
         startPointIndex = contour + 1;
       }
+
+      const edgesAllContours = [];
+
+      for (let pointsInContour of pointsSplitByContour) {
+        const edges = [];
+
+        if (drawCurves) {
+          // Insert implied points into array
+          const pointsInContourWithImplied = [];
+          for (let i = 0; i < pointsInContour.length; i++) {
+            const pt1 = pointsInContour[i];
+            const pt2 = pointsInContour[(i + 1) % pointsInContour.length];
+            pointsInContourWithImplied.push(pt1);
+            if (!pt1.onCurve && !pt2.onCurve) {
+              const mid = { onCurve: true, vec: pt1.vec.lerp(pt2.vec, 0.5) };
+              pointsInContourWithImplied.push(mid);
+            }
+          }
+          pointsInContour = pointsInContourWithImplied;
+
+          // Interpolate curves using De Casteljau's Algorithm
+          for (
+            let decasteljaui = 0;
+            decasteljaui < decasteljauIters;
+            decasteljaui++
+          ) {
+            const pointsInContourInterpolated = [];
+            // For each off-curve point, insert an on-curve point corresponding to t=0.5,
+            // and two new off-curve points around it that split the curve in two at this point
+            for (let i = 0; i < pointsInContour.length; i++) {
+              const pt = pointsInContour[i];
+              if (!pt.onCurve) {
+                const lastPtV =
+                  pointsInContour[(i - 1) % pointsInContour.length].vec;
+                const nextPtV =
+                  pointsInContour[(i + 1) % pointsInContour.length].vec;
+                const midLastCurr = lastPtV.midpoint(pt.vec);
+                const midNextCurr = nextPtV.midpoint(pt.vec);
+                const bezierMidpoint = midLastCurr.midpoint(midNextCurr);
+                pointsInContourInterpolated.push({
+                  onCurve: false,
+                  vec: midLastCurr,
+                });
+                pointsInContourInterpolated.push({
+                  onCurve: true,
+                  vec: bezierMidpoint,
+                });
+                pointsInContourInterpolated.push({
+                  onCurve: false,
+                  vec: midNextCurr,
+                });
+              } else {
+                pointsInContourInterpolated.push(pt);
+              }
+            }
+            pointsInContour = pointsInContourInterpolated;
+          }
+        }
+
+        // Remove off-curve points before drawing (unless we didn't use them to interpolate)
+        if (drawCurves) {
+          pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
+        }
+        const pointsInContourVecs = pointsInContour.map((pt) => pt.vec);
+
+        // Make a list of edges. This will be useful both for the canvas moveTo and lineTo calls, and
+        // for the winding-number algorithm.
+        for (let i = 0; i < pointsInContourVecs.length; i++) {
+          const pt1 = pointsInContourVecs[i];
+          const pt2 = pointsInContourVecs[(i + 1) % pointsInContourVecs.length];
+          edges.push({ pt1, pt2 });
+        }
+
+        // Draw this subpath on the canvas
+        ctx.moveTo(pointsInContourVecs[0].x, pointsInContourVecs[0].y);
+        for (const edge of edges) {
+          ctx.lineTo(edge.pt2.x, edge.pt2.y);
+        }
+        ctx.closePath();
+
+        edgesAllContours.push(...edges);
+      }
+
+      // Fill all the subpaths at once
       ctx.fillStyle = GLYPH_FILL_COLOR;
       ctx.strokeStyle = GLYPH_STROKE_COLOR;
       ctx.lineWidth = GLYPH_LINE_WIDTH;
       ctx.fill();
       if (GLYPH_LINE_WIDTH > 0) ctx.stroke();
-
-      if (SHOW_CONTOUR_POINTS) {
-        for (let i = 0; i < glyph.points.length; i++) {
-          const pt = glyph.points[i];
-          ctx.beginPath();
-          ctx.arc(pt.vec.x, pt.vec.y, CONTOUR_POINT_RADIUS, 0, 2 * Math.PI);
-          ctx.fillStyle = pt.onCurve
-            ? CONTOUR_POINT_ON_CURVE_COLOR
-            : CONTOUR_POINT_OFF_CURVE_COLOR;
-          ctx.strokeStyle = ctx.fillStyle;
-          ctx.fill();
-          ctx.stroke();
-        }
-        ctx.lineWidth = CONTOUR_POINT_LINE_WIDTH;
-        ctx.strokeStyle = CONTOUR_POINT_ON_CURVE_COLOR;
-        for (const impliedOnCurvePoint of impliedOnCurvePoints) {
-          ctx.beginPath();
-          ctx.arc(
-            impliedOnCurvePoint.x,
-            impliedOnCurvePoint.y,
-            CONTOUR_POINT_RADIUS,
-            0,
-            2 * Math.PI,
-          );
-          ctx.stroke();
-        }
-      }
     },
-    [drawCurves],
+    [drawCurves, decasteljauIters],
   );
 
   const drawSingleGlyph = useCallback(() => {
@@ -280,6 +291,21 @@ function App() {
         />
         <label>Draw Curves</label>
       </div>
+      {drawCurves && (
+        <div className="flex gap-4 items-baseline">
+          <input
+            name="decasteljau-iters"
+            type="range"
+            min="0"
+            max="3"
+            value={decasteljauIters}
+            onChange={(e) => {
+              setDecasteljauIters(Number(e.currentTarget.value));
+            }}
+          />
+          <label>De Casteljau Iters: {decasteljauIters}</label>
+        </div>
+      )}
       <div className="flex gap-4 items-baseline">
         <input
           name="font-size"

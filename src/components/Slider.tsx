@@ -16,10 +16,10 @@ export default function Slider({
         type="range"
         value={value}
         onChange={(e) => onValueChange(Number(e.currentTarget.value))}
-        className="grow h-1.5 appearance-none bg-indigo-300 rounded-full"
+        className="grow appearance-none"
         {...props}
       />
-      <div className="w-12 text-sm text-right text-indigo-700 font-mono font-semibold">
+      <div className="w-12 text-right">
         {format != null ? format(value) : value}
       </div>
     </div>

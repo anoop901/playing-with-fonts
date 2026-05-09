@@ -190,17 +190,15 @@ function App() {
   }, [drawGlyphOnPixelGrid]);
 
   const Settings = (
-    <div className="w-80 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+    <div className="w-80 overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">
-          Settings
-        </h2>
+      <div className="">
+        <h2 className="">Settings</h2>
       </div>
 
-      <div className="px-5 py-4 flex flex-col gap-5">
+      <div className="flex flex-col">
         <Labeled label="Font file">
-          <div className="flex flex-col gap-1 items-start">
+          <div className="flex flex-col items-start">
             <Button onClick={() => fileInputRef.current?.click()}>
               Upload File
             </Button>
@@ -223,9 +221,7 @@ function App() {
                 reader.readAsArrayBuffer(file);
               }}
             />
-            {selectedFile && (
-              <span className="text-sm text-gray-600">{selectedFile}</span>
-            )}
+            {selectedFile && <span className="">{selectedFile}</span>}
           </div>
         </Labeled>
         <Labeled label="Character">

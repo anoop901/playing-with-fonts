@@ -6,10 +6,8 @@ export default function Labeled({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-        {label}
-      </label>
+    <div className="flex flex-col">
+      <label className="">{label}</label>
       {children}
     </div>
   );

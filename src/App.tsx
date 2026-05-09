@@ -17,6 +17,7 @@ import parseFontData from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
+import clamp from "./util/clamp";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,10 +121,10 @@ function App() {
       const transformedBboxMax = fontRenderer.glyphCoordToRenderCoord(
         new Vector2(firstGlyph.xMax, firstGlyph.yMax),
       );
-      const xwMin = Math.floor(transformedBboxMin.x);
-      const xwMax = Math.ceil(transformedBboxMax.x);
-      const ywMin = Math.floor(transformedBboxMax.y);
-      const ywMax = Math.ceil(transformedBboxMin.y);
+      const xwMin = clamp(Math.floor(transformedBboxMin.x), 0, PIXEL_GRID_SIZE);
+      const xwMax = clamp(Math.ceil(transformedBboxMax.x), 0, PIXEL_GRID_SIZE);
+      const ywMin = clamp(Math.floor(transformedBboxMax.y), 0, PIXEL_GRID_SIZE);
+      const ywMax = clamp(Math.ceil(transformedBboxMin.y), 0, PIXEL_GRID_SIZE);
 
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
       ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
@@ -131,30 +132,15 @@ function App() {
 
       for (let yw = ywMin; yw < ywMax; yw++) {
         for (let xw = xwMin; xw < xwMax; xw++) {
-          const windingNumber = windingNumbers[yw] && windingNumbers[yw][xw];
-          const smallDotRadius = 0.05;
-          const dotRadius = viewOutline ? 0.4 : 0.45;
-          if (windingNumber === 0 || windingNumber === undefined) {
-            // ctx.strokeRect(
-            //   xw + 0.5 - dotRadius,
-            //   yw + 0.5 - dotRadius,
-            //   2 * dotRadius,
-            //   2 * dotRadius,
-            // );
-            ctx.fillRect(
-              xw + 0.5 - smallDotRadius,
-              yw + 0.5 - smallDotRadius,
-              2 * smallDotRadius,
-              2 * smallDotRadius,
-            );
-          } else {
-            ctx.fillRect(
-              xw + 0.5 - dotRadius,
-              yw + 0.5 - dotRadius,
-              2 * dotRadius,
-              2 * dotRadius,
-            );
-          }
+          const windingNumber = windingNumbers[yw][xw];
+          const dotRadius =
+            windingNumber === 0 ? 0.05 : viewOutline ? 0.35 : 0.45;
+          ctx.fillRect(
+            xw + 0.5 - dotRadius,
+            yw + 0.5 - dotRadius,
+            2 * dotRadius,
+            2 * dotRadius,
+          );
         }
       }
     },

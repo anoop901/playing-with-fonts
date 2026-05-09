@@ -2,14 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FONT_SIZE,
   GLYPH_FILL_COLOR,
-  GLYPH_LINE_WIDTH,
-  GLYPH_STROKE_COLOR,
   PIXEL_GRID_SIZE,
   PIXEL_GRID_SCALE,
   PIXEL_GRID_ORIGIN_Y,
   PIXEL_GRID_ORIGIN_X,
   PIXEL_GRID_DOT_COLOR,
-  PIXEL_GRIDLINE_COLOR,
   CANVAS_SIZE,
 } from "./constants";
 import Button from "./components/Button";
@@ -109,10 +106,7 @@ function App() {
 
       // Fill all the subpaths at once
       ctx.fillStyle = GLYPH_FILL_COLOR;
-      ctx.strokeStyle = GLYPH_STROKE_COLOR;
-      ctx.lineWidth = GLYPH_LINE_WIDTH;
       ctx.fill();
-      if (GLYPH_LINE_WIDTH > 0) ctx.stroke();
     },
     [processedContours],
   );
@@ -132,7 +126,6 @@ function App() {
       const ywMax = clamp(Math.ceil(transformedBboxMin.y), 0, PIXEL_GRID_SIZE);
 
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
-      ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
       ctx.lineWidth = 0.03;
 
       for (let yw = ywMin; yw < ywMax; yw++) {
@@ -315,7 +308,7 @@ function App() {
       </div>{" "}
       <div className="w-80 flex flex-col gap-2 self">
         {fontError && (
-          <div className="px-4 py-2 rounded text-red-800 border-2 border-red-800 bg-red-200">
+          <div className="px-4 py-2 rounded text-danger-foreground border-2 border-danger-foreground bg-danger-background">
             {fontError}
           </div>
         )}

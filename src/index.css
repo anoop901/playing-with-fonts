@@ -19,4 +19,7 @@
 
   --color-primary: var(--color-sky-600);
   --color-primary-weak: var(--color-sky-200);
+
+  --color-danger-foreground: var(--color-red-800);
+  --color-danger-background: var(--color-red-200);
 }

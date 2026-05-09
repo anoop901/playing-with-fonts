@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CANVAS_HEIGHT_PX,
-  CANVAS_WIDTH_PX,
   FONT_SIZE,
   GLYPH_FILL_COLOR,
   GLYPH_LINE_WIDTH,
@@ -12,6 +10,7 @@ import {
   PIXEL_GRID_ORIGIN_X,
   PIXEL_GRID_DOT_COLOR,
   PIXEL_GRIDLINE_COLOR,
+  CANVAS_SIZE,
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData from "./parseFontFile";
@@ -134,7 +133,7 @@ function App() {
         for (let xw = xwMin; xw < xwMax; xw++) {
           const windingNumber = windingNumbers[yw] && windingNumbers[yw][xw];
           const smallDotRadius = 0.05;
-          const dotRadius = viewOutline ? 0.4 : 0.5;
+          const dotRadius = viewOutline ? 0.4 : 0.45;
           if (windingNumber === 0 || windingNumber === undefined) {
             // ctx.strokeRect(
             //   xw + 0.5 - dotRadius,
@@ -166,10 +165,9 @@ function App() {
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx == null || fontData == null) return;
 
-    ctx.canvas.width = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
-    ctx.canvas.height = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
+    ctx.canvas.width = CANVAS_SIZE;
+    ctx.canvas.height = CANVAS_SIZE;
     ctx.resetTransform();
-    ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
     if (!fontRenderer) return;
@@ -286,7 +284,7 @@ function App() {
           name="font-size"
           type="range"
           min="6"
-          max="32"
+          max="64"
           value={fontSize}
           onChange={(e) => {
             setFontSize(Number(e.currentTarget.value));

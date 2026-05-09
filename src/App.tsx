@@ -199,6 +199,35 @@ function App() {
       </div>
 
       <div className="px-5 py-4 flex flex-col gap-5">
+        <Labeled label="Font file">
+          <div className="flex flex-col gap-1 items-start">
+            <Button onClick={() => fileInputRef.current?.click()}>
+              Upload File
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) {
+                  setSelectedFile(null);
+                  setFileData(null);
+                  return;
+                }
+                setSelectedFile(file.name);
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setFileData(new Uint8Array(reader.result as ArrayBuffer));
+                };
+                reader.readAsArrayBuffer(file);
+              }}
+            />
+            {selectedFile && (
+              <span className="text-sm text-gray-600">{selectedFile}</span>
+            )}
+          </div>
+        </Labeled>
         <Labeled label="Character">
           <Input
             type="text"
@@ -257,33 +286,6 @@ function App() {
 
   return (
     <div className="min-h-full flex flex-col items-center justify-center py-4 gap-2">
-      <div className="flex gap-3 items-center">
-        <Button onClick={() => fileInputRef.current?.click()}>
-          Upload File
-        </Button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) {
-              setSelectedFile(null);
-              setFileData(null);
-              return;
-            }
-            setSelectedFile(file.name);
-            const reader = new FileReader();
-            reader.onload = () => {
-              setFileData(new Uint8Array(reader.result as ArrayBuffer));
-            };
-            reader.readAsArrayBuffer(file);
-          }}
-        />
-        {selectedFile && (
-          <span className="text-sm text-gray-600">{selectedFile}</span>
-        )}
-      </div>
       {fontError && (
         <div className="px-4 py-2 rounded text-red-800 border-2 border-red-800 bg-red-200">
           {fontError}

@@ -18,6 +18,11 @@ import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
 import clamp from "./util/clamp";
+import Input from "./components/Input";
+import Select from "./components/Select";
+import Labeled from "./components/Labeled";
+import Toggle from "./components/Toggle";
+import Slider from "./components/Slider";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -184,6 +189,72 @@ function App() {
     drawGlyphOnPixelGrid();
   }, [drawGlyphOnPixelGrid]);
 
+  const Settings = (
+    <div className="w-80 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-widest">
+          Settings
+        </h2>
+      </div>
+
+      <div className="px-5 py-4 flex flex-col gap-5">
+        <Labeled label="Character">
+          <Input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+          />
+        </Labeled>
+
+        <Labeled label="View Mode">
+          <Select
+            label="View mode"
+            value={viewMode}
+            onChange={(e) =>
+              setViewMode(
+                e.currentTarget.value as "outline" | "pixels" | "both",
+              )
+            }
+          >
+            <option value="both">Outline and pixels</option>
+            <option value="outline">Outline</option>
+            <option value="pixels">Pixels</option>
+          </Select>
+        </Labeled>
+
+        <Toggle
+          label={"Draw curves"}
+          checked={drawCurves}
+          onCheckedChange={(checked) => setDrawCurves(checked)}
+        />
+
+        {drawCurves && (
+          <Labeled label="De Casteljau Iterations">
+            <Slider
+              min={0}
+              max={3}
+              step={1}
+              value={decasteljauIters}
+              onValueChange={(value) => setDecasteljauIters(value)}
+            />
+          </Labeled>
+        )}
+
+        <Labeled label="Font Size">
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={fontSize}
+            format={(x) => `${x}px`}
+            onValueChange={(value) => setFontSize(value)}
+          />
+        </Labeled>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-full flex flex-col items-center justify-center py-4 gap-2">
       <div className="flex gap-3 items-center">
@@ -212,12 +283,6 @@ function App() {
         {selectedFile && (
           <span className="text-sm text-gray-600">{selectedFile}</span>
         )}
-        <input
-          type="text"
-          value={text}
-          className="border-2 p-2 rounded border-gray-200"
-          onChange={(e) => setText(e.currentTarget.value)}
-        />
       </div>
       {fontError && (
         <div className="px-4 py-2 rounded text-red-800 border-2 border-red-800 bg-red-200">
@@ -225,59 +290,7 @@ function App() {
         </div>
       )}
       {fontData && <div className="font-mono"></div>}
-      <div className="flex gap-4 items-baseline">
-        <label>View Mode:</label>
-        <select
-          value={viewMode}
-          onChange={(e) =>
-            setViewMode(e.currentTarget.value as "outline" | "pixels" | "both")
-          }
-          className="border p-1 rounded"
-        >
-          <option value="both">Both</option>
-          <option value="outline">Outline</option>
-          <option value="pixels">Pixels</option>
-        </select>
-      </div>
-      <div className="flex gap-4 items-baseline">
-        <input
-          name="draw-curves"
-          type="checkbox"
-          checked={drawCurves}
-          onChange={(e) => {
-            setDrawCurves(e.currentTarget.checked);
-          }}
-        />
-        <label>Draw Curves</label>
-      </div>
-      {drawCurves && (
-        <div className="flex gap-4 items-baseline">
-          <input
-            name="decasteljau-iters"
-            type="range"
-            min="0"
-            max="3"
-            value={decasteljauIters}
-            onChange={(e) => {
-              setDecasteljauIters(Number(e.currentTarget.value));
-            }}
-          />
-          <label>De Casteljau Iters: {decasteljauIters}</label>
-        </div>
-      )}
-      <div className="flex gap-4 items-baseline">
-        <input
-          name="font-size"
-          type="range"
-          min="6"
-          max="64"
-          value={fontSize}
-          onChange={(e) => {
-            setFontSize(Number(e.currentTarget.value));
-          }}
-        />
-        <label>Font Size: {fontSize}px</label>
-      </div>
+      {Settings}
       <div className="flex flex-col items-start">
         <div>Single glyph on pixel grid</div>
         <canvas

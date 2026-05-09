@@ -9,7 +9,7 @@ export default function Button({
     <button
       className={
         "bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded cursor-pointer border-gray-400 border-2 active:translate-y-1 transition font-semibold " +
-        className
+        (className ?? "")
       }
       {...props}
     >

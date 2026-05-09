@@ -8,7 +8,7 @@ export default function Button({
   return (
     <button
       className={
-        "cursor-pointer rounded px-2 py-1 bg-indigo-600 text-white hover:bg-indigo-400 active:bg-indigo-800 " +
+        "cursor-pointer rounded px-2 py-1 bg-indigo-600 text-white hover:bg-indigo-400 active:bg-indigo-800 font-semibold " +
         (className ?? "")
       }
       {...props}

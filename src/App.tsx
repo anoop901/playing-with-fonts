@@ -190,10 +190,12 @@ function App() {
   }, [drawGlyphOnPixelGrid]);
 
   const Settings = (
-    <div className="w-80 overflow-hidden border-2 rounded border-amber-600 font-medium">
+    <div className="w-80 overflow-hidden border-2 rounded border-gray-200">
       {/* Header */}
-      <div className="p-2 bg-amber-600">
-        <h2 className="uppercase text-white">Settings</h2>
+      <div className="p-2 bg-gray-200">
+        <h2 className="uppercase text-gray-600 font-semibold tracking-wide">
+          Settings
+        </h2>
       </div>
 
       <div className="p-2 flex flex-col gap-4">

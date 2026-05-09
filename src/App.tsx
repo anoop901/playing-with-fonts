@@ -107,13 +107,13 @@ function App() {
   );
 
   const drawPixelGrid = useCallback(
-    (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
-      if (fontRenderer == null) return;
+    (ctx: CanvasRenderingContext2D) => {
+      if (firstGlyph == null || fontRenderer == null) return;
       const transformedBboxMin = fontRenderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMin, glyph.yMin),
+        new Vector2(firstGlyph.xMin, firstGlyph.yMin),
       );
       const transformedBboxMax = fontRenderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMax, glyph.yMax),
+        new Vector2(firstGlyph.xMax, firstGlyph.yMax),
       );
       const xwMin = Math.floor(transformedBboxMin.x);
       const xwMax = Math.ceil(transformedBboxMax.x);
@@ -133,25 +133,23 @@ function App() {
         }
       }
     },
-    [fontRenderer],
+    [firstGlyph, fontRenderer],
   );
 
   const drawGlyphOnPixelGrid = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    if (!fontData) return;
+    if (ctx == null || fontData == null) return;
 
-    ctx.imageSmoothingEnabled = false;
     ctx.canvas.width = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
     ctx.canvas.height = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
     ctx.resetTransform();
     ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
-    if (!firstGlyph || !fontRenderer) return;
+    if (!fontRenderer) return;
 
     drawGlyph(ctx);
-    drawPixelGrid(ctx, firstGlyph);
+    drawPixelGrid(ctx);
 
     // Mark the origin
     const originW = fontRenderer.glyphCoordToRenderCoord(Vector2.ZERO);
@@ -160,7 +158,7 @@ function App() {
     ctx.lineWidth = 0.03;
     ctx.strokeRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
     ctx.fillText("origin", originW.x + 0.15, originW.y);
-  }, [drawGlyph, drawPixelGrid, firstGlyph, fontData, fontRenderer]);
+  }, [drawGlyph, drawPixelGrid, fontData, fontRenderer]);
 
   useEffect(() => {
     drawGlyphOnPixelGrid();

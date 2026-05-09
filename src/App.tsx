@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BBOX_FILL_COLOR,
   CANVAS_HEIGHT_PX,
   CANVAS_WIDTH_PX,
   FONT_SIZE,
@@ -17,6 +16,8 @@ import {
 import Button from "./components/Button";
 import parseFontData, { type GlyphData } from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
+import { FontRenderer } from "./util/FontRenderer";
+import { Vector2 } from "./util/Vector2";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,109 +60,40 @@ function App() {
     return fontData?.glyphs[glyphIndex];
   }, [fontData, text]);
 
+  const fontRenderer = useMemo(() => {
+    if (!fontData) return null;
+    return new FontRenderer(
+      new Vector2(pixelGridOrigin.x, pixelGridOrigin.y),
+      fontSize,
+      fontData.unitsPerEm,
+      new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+    );
+  }, [fontData, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
+
+  const processedContours = useMemo(() => {
+    if (!firstGlyph || !fontRenderer) {
+      return [];
+    }
+    return fontRenderer.renderGlyph(firstGlyph, decasteljauIters, drawCurves);
+  }, [firstGlyph, fontRenderer, decasteljauIters, drawCurves]);
+
   const drawGlyph = useCallback(
-    (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
-      // Draw bounding box
-      ctx.fillStyle = BBOX_FILL_COLOR;
-      ctx.fillRect(
-        glyph.xMin,
-        glyph.yMin,
-        glyph.xMax - glyph.xMin,
-        glyph.yMax - glyph.yMin,
-      );
+    (ctx: CanvasRenderingContext2D) => {
+      ctx.beginPath();
 
-      // Draw glyph
-
-      // Put the points of each contour in a separate array
-      let startPointIndex = 0;
-      const pointsSplitByContour = [];
-      for (const contour of glyph.contours) {
-        pointsSplitByContour.push(
-          glyph.points.slice(startPointIndex, contour + 1),
-        );
-        startPointIndex = contour + 1;
-      }
-
-      const edgesAllContours = [];
-
-      for (let pointsInContour of pointsSplitByContour) {
-        const edges = [];
-
-        if (drawCurves) {
-          // Insert implied points into array
-          const pointsInContourWithImplied = [];
-          for (let i = 0; i < pointsInContour.length; i++) {
-            const pt1 = pointsInContour[i];
-            const pt2 = pointsInContour[(i + 1) % pointsInContour.length];
-            pointsInContourWithImplied.push(pt1);
-            if (!pt1.onCurve && !pt2.onCurve) {
-              const mid = { onCurve: true, vec: pt1.vec.lerp(pt2.vec, 0.5) };
-              pointsInContourWithImplied.push(mid);
-            }
-          }
-          pointsInContour = pointsInContourWithImplied;
-
-          // Interpolate curves using De Casteljau's Algorithm
-          for (
-            let decasteljaui = 0;
-            decasteljaui < decasteljauIters;
-            decasteljaui++
-          ) {
-            const pointsInContourInterpolated = [];
-            // For each off-curve point, insert an on-curve point corresponding to t=0.5,
-            // and two new off-curve points around it that split the curve in two at this point
-            for (let i = 0; i < pointsInContour.length; i++) {
-              const pt = pointsInContour[i];
-              if (!pt.onCurve) {
-                const lastPtV =
-                  pointsInContour[(i - 1) % pointsInContour.length].vec;
-                const nextPtV =
-                  pointsInContour[(i + 1) % pointsInContour.length].vec;
-                const midLastCurr = lastPtV.midpoint(pt.vec);
-                const midNextCurr = nextPtV.midpoint(pt.vec);
-                const bezierMidpoint = midLastCurr.midpoint(midNextCurr);
-                pointsInContourInterpolated.push({
-                  onCurve: false,
-                  vec: midLastCurr,
-                });
-                pointsInContourInterpolated.push({
-                  onCurve: true,
-                  vec: bezierMidpoint,
-                });
-                pointsInContourInterpolated.push({
-                  onCurve: false,
-                  vec: midNextCurr,
-                });
-              } else {
-                pointsInContourInterpolated.push(pt);
-              }
-            }
-            pointsInContour = pointsInContourInterpolated;
-          }
-        }
-
-        // Remove off-curve points before drawing (unless we didn't use them to interpolate)
-        if (drawCurves) {
-          pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
-        }
-        const pointsInContourVecs = pointsInContour.map((pt) => pt.vec);
-
-        // Make a list of edges. This will be useful both for the canvas moveTo and lineTo calls, and
-        // for the winding-number algorithm.
-        for (let i = 0; i < pointsInContourVecs.length; i++) {
-          const pt1 = pointsInContourVecs[i];
-          const pt2 = pointsInContourVecs[(i + 1) % pointsInContourVecs.length];
-          edges.push({ pt1, pt2 });
-        }
+      for (let c = 0; c < processedContours.length; c++) {
+        const contourVecs = processedContours[c];
+        if (contourVecs.length === 0) continue;
 
         // Draw this subpath on the canvas
-        ctx.moveTo(pointsInContourVecs[0].x, pointsInContourVecs[0].y);
-        for (const edge of edges) {
-          ctx.lineTo(edge.pt2.x, edge.pt2.y);
+        ctx.moveTo(
+          contourVecs[contourVecs.length - 1].x,
+          contourVecs[contourVecs.length - 1].y,
+        );
+        for (const contourVec of contourVecs) {
+          ctx.lineTo(contourVec.x, contourVec.y);
         }
         ctx.closePath();
-
-        edgesAllContours.push(...edges);
       }
 
       // Fill all the subpaths at once
@@ -171,77 +103,72 @@ function App() {
       ctx.fill();
       if (GLYPH_LINE_WIDTH > 0) ctx.stroke();
     },
-    [drawCurves, decasteljauIters],
+    [processedContours],
   );
 
-  const drawSingleGlyph = useCallback(() => {
+  const drawPixelGrid = useCallback(
+    (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
+      if (fontRenderer == null) return;
+      const transformedBboxMin = fontRenderer.glyphCoordToRenderCoord(
+        new Vector2(glyph.xMin, glyph.yMin),
+      );
+      const transformedBboxMax = fontRenderer.glyphCoordToRenderCoord(
+        new Vector2(glyph.xMax, glyph.yMax),
+      );
+      const xwMin = Math.floor(transformedBboxMin.x);
+      const xwMax = Math.ceil(transformedBboxMax.x);
+      const ywMin = Math.floor(transformedBboxMax.y);
+      const ywMax = Math.ceil(transformedBboxMin.y);
+
+      ctx.font = "0.2px monospace";
+      ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
+      ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
+      ctx.lineWidth = 0.03;
+
+      for (let yw = ywMin; yw < ywMax; yw++) {
+        for (let xw = xwMin; xw < xwMax; xw++) {
+          ctx.strokeRect(xw, yw, 1, 1);
+          ctx.fillRect(xw + 0.45, yw + 0.45, 0.1, 0.1);
+          ctx.fillText(`${xw},${yw}`, xw + 0.15, yw + 0.25);
+        }
+      }
+    },
+    [fontRenderer],
+  );
+
+  const drawGlyphOnPixelGrid = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     if (!fontData) return;
 
+    ctx.imageSmoothingEnabled = false;
     ctx.canvas.width = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
     ctx.canvas.height = PIXEL_GRID_SIZE * PIXEL_GRID_SCALE;
     ctx.resetTransform();
     ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
-
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
-    ctx.save();
-    ctx.translate(pixelGridOrigin.x, pixelGridOrigin.y);
-    const scale = fontSize / fontData.unitsPerEm;
-    ctx.scale(scale, scale);
-    ctx.scale(1, -1);
-    const glyph = firstGlyph;
-    if (!glyph) return;
-    drawGlyph(ctx, glyph);
-    ctx.restore();
+    if (!firstGlyph || !fontRenderer) return;
 
-    const xwMin = Math.floor(glyph.xMin * scale + pixelGridOrigin.x);
-    const xwMax = Math.ceil(glyph.xMax * scale + pixelGridOrigin.x);
-    const ywMin = Math.floor(-(glyph.yMax * scale) + pixelGridOrigin.y);
-    const ywMax = Math.ceil(-(glyph.yMin * scale) + pixelGridOrigin.y);
+    drawGlyph(ctx);
+    drawPixelGrid(ctx, firstGlyph);
 
-    ctx.font = "0.2px monospace";
-    ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
-    ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
-    ctx.lineWidth = 0.03;
-
-    for (let yw = ywMin; yw < ywMax; yw++) {
-      for (let xw = xwMin; xw < xwMax; xw++) {
-        ctx.strokeRect(xw, yw, 1, 1);
-        ctx.fillRect(xw + 0.45, yw + 0.45, 0.1, 0.1);
-        ctx.fillText(`${xw},${yw}`, xw + 0.15, yw + 0.25);
-      }
-    }
-
-    ctx.save();
-    ctx.translate(pixelGridOrigin.x, pixelGridOrigin.y);
+    // Mark the origin
+    const originW = fontRenderer.glyphCoordToRenderCoord(Vector2.ZERO);
     ctx.strokeStyle = "red";
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.03;
-    ctx.strokeRect(-0.1, -0.1, 0.2, 0.2);
-    ctx.fillText("origin", 0.15, 0);
-    ctx.restore();
-  }, [drawGlyph, firstGlyph, fontData, pixelGridOrigin, fontSize]);
-
-  const draw = useCallback(() => {
-    drawSingleGlyph();
-  }, [drawSingleGlyph]);
+    ctx.strokeRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
+    ctx.fillText("origin", originW.x + 0.15, originW.y);
+  }, [drawGlyph, drawPixelGrid, firstGlyph, fontData, fontRenderer]);
 
   useEffect(() => {
-    draw();
-  }, [draw]);
+    drawGlyphOnPixelGrid();
+  }, [drawGlyphOnPixelGrid]);
 
   return (
     <div className="min-h-full flex flex-col items-center justify-center py-4 gap-2">
       <div className="flex gap-3 items-center">
-        <Button
-          onClick={() => {
-            draw();
-          }}
-        >
-          Refresh
-        </Button>
         <Button onClick={() => fileInputRef.current?.click()}>
           Upload File
         </Button>

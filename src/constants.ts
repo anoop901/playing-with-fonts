@@ -5,7 +5,7 @@ export const BBOX_FILL_COLOR = "#cccccc";
 
 export const GLYPH_STROKE_COLOR = "#4444aa";
 export const GLYPH_FILL_COLOR = "#6666cc";
-export const GLYPH_LINE_WIDTH = 5;
+export const GLYPH_LINE_WIDTH = 0.1;
 
 export const FONT_SIZE = 18;
 

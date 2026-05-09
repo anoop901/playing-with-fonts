@@ -229,18 +229,16 @@ function App() {
 
         <Labeled label="View Mode">
           <Select
-            label="View mode"
             value={viewMode}
-            onChange={(e) =>
-              setViewMode(
-                e.currentTarget.value as "outline" | "pixels" | "both",
-              )
+            onChange={(value) =>
+              setViewMode(value as "outline" | "pixels" | "both")
             }
-          >
-            <option value="both">Outline and pixels</option>
-            <option value="outline">Outline</option>
-            <option value="pixels">Pixels</option>
-          </Select>
+            options={[
+              { name: "Outline", value: "outline" },
+              { name: "Pixels", value: "pixels" },
+              { name: "Both", value: "both" },
+            ]}
+          />
         </Labeled>
 
         <Toggle

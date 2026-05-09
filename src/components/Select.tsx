@@ -1,19 +1,32 @@
 import type { ComponentProps } from "react";
 
 export default function Select({
-  children,
   className,
-  ...props
-}: { label: string } & ComponentProps<"select">) {
+  options,
+  value,
+  onChange,
+}: {
+  className?: string;
+  options: { name: string; value: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const currentValue = value;
   return (
-    <select
+    <div
       className={
-        "appearance-none focus:outline-none rounded px-2 py-1 border-2 border-border-weak bg-background-input hover:border-border focus:border-primary " +
+        "flex w-fit flex-wrap select-none gap-1 px-2 py-1 bg-background-input border-2 border-border-weak rounded " +
         (className ?? "")
       }
-      {...props}
     >
-      {children}
-    </select>
+      {options.map(({ name, value }) => (
+        <div
+          className={`px-2 py-1 rounded font-semibold ${currentValue === value ? "bg-primary text-primary-foreground" : "hover:bg-background-2"}`}
+          onClick={() => onChange(value)}
+        >
+          {name}
+        </div>
+      ))}
+    </div>
   );
 }

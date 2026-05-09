@@ -18,6 +18,7 @@
   --color-background-input: var(--color-white);
 
   --color-primary: var(--color-sky-600);
+  --color-primary-foreground: var(--color-white);
   --color-primary-weak: var(--color-sky-200);
 
   --color-danger-foreground: var(--color-red-800);

@@ -59,6 +59,7 @@ function App() {
     }
   }, [fileData]);
   const [text, setText] = useState<string>("Hello, world!");
+  const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
 
   const firstGlyph = useMemo(() => {
     const charCode = text.charCodeAt(0) || 0;
@@ -182,7 +183,7 @@ function App() {
 
     if (fontData == null) return;
 
-    const scale = FONT_SIZE / fontData.unitsPerEm;
+    const scale = fontSize / fontData.unitsPerEm;
     ctx.translate(TEXT_COORDS.x, TEXT_COORDS.y);
     ctx.scale(scale, scale);
     ctx.save();
@@ -197,7 +198,7 @@ function App() {
       }
       ctx.translate(glyph?.hMetrics.advanceWidth ?? 0, 0);
     }
-  }, [drawGlyph, fontData, text]);
+  }, [drawGlyph, fontData, text, fontSize]);
 
   const drawSingleGlyph = useCallback(() => {
     const ctx = canvas3Ref.current?.getContext("2d");
@@ -213,7 +214,7 @@ function App() {
 
     ctx.save();
     ctx.translate(pixelGridOrigin.x, pixelGridOrigin.y);
-    const scale = FONT_SIZE / fontData.unitsPerEm;
+    const scale = fontSize / fontData.unitsPerEm;
     ctx.scale(scale, scale);
     ctx.scale(1, -1);
     const glyph = firstGlyph;
@@ -247,7 +248,7 @@ function App() {
     ctx.strokeRect(-0.1, -0.1, 0.2, 0.2);
     ctx.fillText("origin", 0.15, 0);
     ctx.restore();
-  }, [drawGlyph, firstGlyph, fontData, pixelGridOrigin]);
+  }, [drawGlyph, firstGlyph, fontData, pixelGridOrigin, fontSize]);
 
   const drawDirectlyToCanvas = useCallback(async () => {
     const ctx = canvas2Ref.current?.getContext("2d");
@@ -269,7 +270,7 @@ function App() {
     document.fonts.add(fontFace);
     setLoadedFontName("MyUploadedFont");
 
-    const scale = FONT_SIZE / fontData.unitsPerEm;
+    const scale = fontSize / fontData.unitsPerEm;
     ctx.translate(TEXT_COORDS.x, TEXT_COORDS.y);
     ctx.scale(scale, scale);
     ctx.fillStyle = GLYPH_FILL_COLOR;
@@ -277,7 +278,7 @@ function App() {
     // 4. Reference the font by the name you gave it in step 1
     ctx.font = `${fontData.unitsPerEm}px MyUploadedFont`;
     ctx.fillText(text, 0, 0);
-  }, [fontData, fileData, text]);
+  }, [fontData, fileData, text, fontSize]);
 
   const draw = useCallback(() => {
     drawFromFontFile();
@@ -348,6 +349,19 @@ function App() {
         />
         <label>Draw Curves</label>
       </div>
+      <div className="flex gap-4 items-baseline">
+        <input
+          name="font-size"
+          type="range"
+          min="6"
+          max="32"
+          value={fontSize}
+          onChange={(e) => {
+            setFontSize(Number(e.currentTarget.value));
+          }}
+        />
+        <label>Font Size: {fontSize}px</label>
+      </div>
       <div className="flex flex-col items-start">
         <div>Single glyph on pixel grid</div>
         <canvas
@@ -406,7 +420,7 @@ function App() {
               x={TEXT_COORDS.x}
               y={TEXT_COORDS.y}
               style={{
-                font: `${FONT_SIZE}px ${loadedFontName}`,
+                font: `${fontSize}px ${loadedFontName}`,
                 fill: GLYPH_FILL_COLOR,
               }}
             >

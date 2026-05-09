@@ -7,7 +7,7 @@ export default function Input({
   return (
     <input
       className={
-        "focus:outline-none border-2 rounded px-2 py-1 border-border-weak bg-background-input hover:border-border focus:border-primary " +
+        "focus:outline-none border-2 rounded px-2 py-1 border-border-weak bg-background-input hover:border-border focus:border-primary transition " +
         (className ?? "")
       }
       {...props}

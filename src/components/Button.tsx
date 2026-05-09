@@ -8,7 +8,7 @@ export default function Button({
   return (
     <button
       className={
-        "cursor-pointer rounded px-2 py-1 bg-primary text-primary-foreground font-semibold " +
+        "cursor-pointer rounded px-2 py-1 bg-primary text-primary-foreground font-semibold hover:scale-105 active:scale-100 transition " +
         (className ?? "")
       }
       {...props}

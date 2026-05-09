@@ -10,7 +10,6 @@ import {
   GLYPH_FILL_COLOR,
   GLYPH_LINE_WIDTH,
   GLYPH_STROKE_COLOR,
-  TEXT_COORDS,
   CONTOUR_POINT_OFF_CURVE_COLOR,
   SHOW_CONTOUR_POINTS,
   PIXEL_GRID_SIZE,
@@ -26,8 +25,6 @@ import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const canvas2Ref = useRef<HTMLCanvasElement>(null);
-  const canvas3Ref = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
@@ -44,7 +41,6 @@ function App() {
       .then((buffer) => setFileData(new Uint8Array(buffer)))
       .catch((err) => console.error("Failed to load default font:", err));
   }, []);
-  const [loadedFontName, setLoadedFontName] = useState<string | null>(null);
   const { data: fontData, error: fontError } = useMemo(() => {
     if (fileData == null) return { data: null, error: "no font file selected" };
     try {
@@ -66,15 +62,6 @@ function App() {
     const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
     return fontData?.glyphs[glyphIndex];
   }, [fontData, text]);
-
-  function clear(ctx: CanvasRenderingContext2D) {
-    const dpr = window.devicePixelRatio || 1;
-    ctx.canvas.width = CANVAS_WIDTH_PX * dpr;
-    ctx.canvas.height = CANVAS_HEIGHT_PX * dpr;
-    ctx.resetTransform();
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX);
-  }
 
   const drawGlyph = useCallback(
     (ctx: CanvasRenderingContext2D, glyph: GlyphData) => {
@@ -176,32 +163,8 @@ function App() {
     [drawCurves],
   );
 
-  const drawFromFontFile = useCallback(() => {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    clear(ctx);
-
-    if (fontData == null) return;
-
-    const scale = fontSize / fontData.unitsPerEm;
-    ctx.translate(TEXT_COORDS.x, TEXT_COORDS.y);
-    ctx.scale(scale, scale);
-    ctx.save();
-    ctx.scale(1, -1);
-
-    for (const char of text) {
-      const codePoint = char.codePointAt(0)!;
-      const glyphIndex = fontData.lookupGlyphIndex(codePoint);
-      const glyph = fontData.glyphs[glyphIndex];
-      if (glyph != null) {
-        drawGlyph(ctx, glyph);
-      }
-      ctx.translate(glyph?.hMetrics.advanceWidth ?? 0, 0);
-    }
-  }, [drawGlyph, fontData, text, fontSize]);
-
   const drawSingleGlyph = useCallback(() => {
-    const ctx = canvas3Ref.current?.getContext("2d");
+    const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     if (!fontData) return;
 
@@ -250,41 +213,9 @@ function App() {
     ctx.restore();
   }, [drawGlyph, firstGlyph, fontData, pixelGridOrigin, fontSize]);
 
-  const drawDirectlyToCanvas = useCallback(async () => {
-    const ctx = canvas2Ref.current?.getContext("2d");
-    if (!ctx) return;
-    clear(ctx);
-
-    if (fontData == null || fileData == null) return;
-
-    // 1. Create a FontFace from the raw binary
-    const fontFace = new FontFace(
-      "MyUploadedFont",
-      fileData.buffer as ArrayBuffer,
-    );
-
-    // 2. Load it (parses the font and makes it ready to use)
-    await fontFace.load();
-
-    // 3. Register it with the document so the canvas can find it
-    document.fonts.add(fontFace);
-    setLoadedFontName("MyUploadedFont");
-
-    const scale = fontSize / fontData.unitsPerEm;
-    ctx.translate(TEXT_COORDS.x, TEXT_COORDS.y);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = GLYPH_FILL_COLOR;
-
-    // 4. Reference the font by the name you gave it in step 1
-    ctx.font = `${fontData.unitsPerEm}px MyUploadedFont`;
-    ctx.fillText(text, 0, 0);
-  }, [fontData, fileData, text, fontSize]);
-
   const draw = useCallback(() => {
-    drawFromFontFile();
-    drawDirectlyToCanvas();
     drawSingleGlyph();
-  }, [drawDirectlyToCanvas, drawFromFontFile, drawSingleGlyph]);
+  }, [drawSingleGlyph]);
 
   useEffect(() => {
     draw();
@@ -365,7 +296,7 @@ function App() {
       <div className="flex flex-col items-start">
         <div>Single glyph on pixel grid</div>
         <canvas
-          ref={canvas3Ref}
+          ref={canvasRef}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
             setIsDragging(true);
@@ -391,43 +322,6 @@ function App() {
           }}
           className="border-2 border-gray-200 [image-rendering:pixelated]"
         />
-      </div>
-      <div className="flex flex-col items-start">
-        <div>Canvas path rendering</div>
-        <canvas
-          ref={canvasRef}
-          style={{ width: CANVAS_WIDTH_PX, height: CANVAS_HEIGHT_PX }}
-          className="border-2 border-gray-200 [image-rendering:pixelated]"
-        />
-      </div>
-      <div className="flex flex-col items-start">
-        <div>Canvas fillText</div>
-        <canvas
-          ref={canvas2Ref}
-          style={{ width: CANVAS_WIDTH_PX, height: CANVAS_HEIGHT_PX }}
-          className="border-2 border-gray-200 [image-rendering:pixelated]"
-        />
-      </div>
-      <div>
-        <div>SVG text</div>
-        <svg
-          width={CANVAS_WIDTH_PX}
-          height={CANVAS_HEIGHT_PX}
-          className="border-2 border-gray-200 [image-rendering:pixelated]"
-        >
-          {loadedFontName && (
-            <text
-              x={TEXT_COORDS.x}
-              y={TEXT_COORDS.y}
-              style={{
-                font: `${fontSize}px ${loadedFontName}`,
-                fill: GLYPH_FILL_COLOR,
-              }}
-            >
-              {text}
-            </text>
-          )}
-        </svg>
       </div>
     </div>
   );

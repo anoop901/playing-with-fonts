@@ -1,11 +1,5 @@
-import { Vector2 } from "./util/Vector2";
-
 export const CANVAS_WIDTH_PX = 500;
 export const CANVAS_HEIGHT_PX = 100;
-export const TEXT_COORDS = new Vector2(
-  CANVAS_WIDTH_PX * 0.1,
-  CANVAS_HEIGHT_PX * 0.75,
-);
 
 export const BBOX_FILL_COLOR = "#cccccc";
 

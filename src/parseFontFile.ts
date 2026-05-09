@@ -24,7 +24,7 @@ type Flags = {
   thisYIsSame: boolean;
 };
 
-type PointOnContour = {
+export type PointOnContour = {
   vec: Vector2;
   onCurve: boolean;
 };

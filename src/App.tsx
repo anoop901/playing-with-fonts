@@ -14,7 +14,7 @@ import {
   PIXEL_GRIDLINE_COLOR,
 } from "./constants";
 import Button from "./components/Button";
-import parseFontData, { type GlyphData } from "./parseFontFile";
+import parseFontData from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";

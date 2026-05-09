@@ -13,3 +13,16 @@ export default function lerp(
   }
   return a + (b - a) * t;
 }
+
+export function lerp_inverse(
+  a: number,
+  b: number,
+  x: number,
+  clamp: boolean = true,
+) {
+  let t = (x - a) / (b - a);
+  if (clamp) {
+    t = clampFunction(t, 0, 1);
+  }
+  return t;
+}

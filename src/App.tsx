@@ -30,6 +30,12 @@ function App() {
     y: PIXEL_GRID_ORIGIN_Y,
   });
   const [isDragging, setIsDragging] = useState(false);
+  const [viewMode, setViewMode] = useState<"outline" | "pixels" | "both">(
+    "both",
+  );
+
+  const viewOutline = viewMode == "outline" || viewMode == "both";
+  const viewPixels = viewMode == "pixels" || viewMode == "both";
 
   useEffect(() => {
     fetch(defaultFontUrl)
@@ -70,9 +76,9 @@ function App() {
     );
   }, [fontData, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
 
-  const processedContours = useMemo(() => {
+  const { processedContours, windingNumbers } = useMemo(() => {
     if (!firstGlyph || !fontRenderer) {
-      return [];
+      return { processedContours: [], windingNumbers: [] };
     }
     return fontRenderer.renderGlyph(firstGlyph, decasteljauIters, drawCurves);
   }, [firstGlyph, fontRenderer, decasteljauIters, drawCurves]);
@@ -120,20 +126,33 @@ function App() {
       const ywMin = Math.floor(transformedBboxMax.y);
       const ywMax = Math.ceil(transformedBboxMin.y);
 
-      ctx.font = "0.2px monospace";
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
       ctx.strokeStyle = PIXEL_GRIDLINE_COLOR;
       ctx.lineWidth = 0.03;
 
       for (let yw = ywMin; yw < ywMax; yw++) {
         for (let xw = xwMin; xw < xwMax; xw++) {
-          ctx.strokeRect(xw, yw, 1, 1);
-          ctx.fillRect(xw + 0.45, yw + 0.45, 0.1, 0.1);
-          ctx.fillText(`${xw},${yw}`, xw + 0.15, yw + 0.25);
+          const windingNumber = windingNumbers[yw] && windingNumbers[yw][xw];
+          const dotRadius = viewOutline ? 0.4 : 0.5;
+          if (windingNumber === 0 || windingNumber === undefined) {
+            // ctx.strokeRect(
+            //   xw + 0.5 - dotRadius,
+            //   yw + 0.5 - dotRadius,
+            //   2 * dotRadius,
+            //   2 * dotRadius,
+            // );
+          } else {
+            ctx.fillRect(
+              xw + 0.5 - dotRadius,
+              yw + 0.5 - dotRadius,
+              2 * dotRadius,
+              2 * dotRadius,
+            );
+          }
         }
       }
     },
-    [firstGlyph, fontRenderer],
+    [firstGlyph, fontRenderer, viewOutline, windingNumbers],
   );
 
   const drawGlyphOnPixelGrid = useCallback(() => {
@@ -148,8 +167,12 @@ function App() {
 
     if (!fontRenderer) return;
 
-    drawGlyph(ctx);
-    drawPixelGrid(ctx);
+    if (viewOutline) {
+      drawGlyph(ctx);
+    }
+    if (viewPixels) {
+      drawPixelGrid(ctx);
+    }
 
     // Mark the origin
     const originW = fontRenderer.glyphCoordToRenderCoord(Vector2.ZERO);
@@ -157,8 +180,14 @@ function App() {
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.03;
     ctx.strokeRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
-    ctx.fillText("origin", originW.x + 0.15, originW.y);
-  }, [drawGlyph, drawPixelGrid, fontData, fontRenderer]);
+  }, [
+    drawGlyph,
+    drawPixelGrid,
+    fontData,
+    fontRenderer,
+    viewOutline,
+    viewPixels,
+  ]);
 
   useEffect(() => {
     drawGlyphOnPixelGrid();
@@ -205,6 +234,20 @@ function App() {
         </div>
       )}
       {fontData && <div className="font-mono"></div>}
+      <div className="flex gap-4 items-baseline">
+        <label>View Mode:</label>
+        <select
+          value={viewMode}
+          onChange={(e) =>
+            setViewMode(e.currentTarget.value as "outline" | "pixels" | "both")
+          }
+          className="border p-1 rounded"
+        >
+          <option value="both">Both</option>
+          <option value="outline">Outline</option>
+          <option value="pixels">Pixels</option>
+        </select>
+      </div>
       <div className="flex gap-4 items-baseline">
         <input
           name="draw-curves"

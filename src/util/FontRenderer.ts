@@ -1,5 +1,11 @@
 import type { PointOnContour, GlyphData } from "../parseFontFile";
+import lerp, { lerp_inverse } from "./lerp";
 import { Vector2 } from "./Vector2";
+
+type RenderedEdge = {
+  from: Vector2;
+  to: Vector2;
+};
 
 function decasteljauSplitQuadBezier(
   pt1: Vector2,
@@ -32,6 +38,20 @@ function insertImpliedOnCurvePoints(pointsInContour: PointOnContour[]) {
   return pointsInContourWithImplied;
 }
 
+function processedContoursToEdges(
+  processedContours: Vector2[][],
+): RenderedEdge[] {
+  const edges = [];
+  for (const contour of processedContours) {
+    for (let i = 0; i < contour.length; i++) {
+      const pt = contour[i];
+      const nextPt = contour[(i + 1) % contour.length];
+      edges.push({ from: pt, to: nextPt });
+    }
+  }
+  return edges;
+}
+
 // For each off-curve point, insert an on-curve point corresponding to t=0.5,
 // and two new off-curve points around it that split the curve in two at this point.
 // Returns a new array, and leaves the input unmodified.
@@ -40,7 +60,10 @@ function interpolateContour(pointsInContour: PointOnContour[]) {
   for (let i = 0; i < pointsInContour.length; i++) {
     const pt = pointsInContour[i];
     if (!pt.onCurve) {
-      const lastPtV = pointsInContour[(i - 1) % pointsInContour.length].vec;
+      const lastPtV =
+        pointsInContour[
+          (i - 1 + pointsInContour.length) % pointsInContour.length
+        ].vec;
       const nextPtV = pointsInContour[(i + 1) % pointsInContour.length].vec;
       const subBeziers = decasteljauSplitQuadBezier(lastPtV, pt.vec, nextPtV);
       pointsInContourInterpolated.push({
@@ -90,7 +113,7 @@ export class FontRenderer {
     return renderCoord;
   }
 
-  renderGlyph(
+  processContours(
     glyph: GlyphData,
     decasteljauIters: number = 3,
     interpolateCurves: boolean,
@@ -132,5 +155,74 @@ export class FontRenderer {
     }
 
     return processedContours;
+  }
+
+  calculateWindingNumbers(edges: RenderedEdge[]) {
+    const windingNumbers: number[][] = [];
+    for (let y = 0; y < this.renderSize.y; y++) {
+      windingNumbers.push([]);
+      for (let x = 0; x < this.renderSize.x; x++) {
+        windingNumbers[y].push(0);
+      }
+    }
+
+    for (const edge of edges) {
+      if (edge.from.y === edge.to.y) continue;
+      let yMin = Math.max(Math.ceil(edge.from.y - 0.5), 0);
+      let yMax = Math.min(Math.floor(edge.to.y - 0.5), this.renderSize.y - 1);
+      for (let y = yMin; y <= yMax; y++) {
+        for (
+          let x = 0;
+          x <=
+          Math.min(
+            lerp(
+              edge.from.x,
+              edge.to.x,
+              lerp_inverse(edge.from.y, edge.to.y, y + 0.5),
+            ) - 0.5,
+            this.renderSize.x - 1,
+          );
+          x++
+        ) {
+          windingNumbers[y][x] += 1;
+        }
+      }
+      yMin = Math.max(Math.ceil(edge.to.y - 0.5), 0);
+      yMax = Math.min(Math.floor(edge.from.y - 0.5), this.renderSize.y - 1);
+      for (let y = yMin; y <= yMax; y++) {
+        for (
+          let x = 0;
+          x <=
+          Math.min(
+            lerp(
+              edge.from.x,
+              edge.to.x,
+              lerp_inverse(edge.from.y, edge.to.y, y + 0.5),
+            ) - 0.5,
+            this.renderSize.x - 1,
+          );
+          x++
+        ) {
+          windingNumbers[y][x] -= 1;
+        }
+      }
+    }
+
+    return windingNumbers;
+  }
+
+  renderGlyph(
+    glyph: GlyphData,
+    decasteljauIters: number = 3,
+    interpolateCurves: boolean,
+  ) {
+    const processedContours = this.processContours(
+      glyph,
+      decasteljauIters,
+      interpolateCurves,
+    );
+    const edges = processedContoursToEdges(processedContours);
+    const windingNumbers = this.calculateWindingNumbers(edges);
+    return { processedContours, windingNumbers };
   }
 }

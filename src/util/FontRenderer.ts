@@ -168,8 +168,14 @@ export class FontRenderer {
 
     for (const edge of edges) {
       if (edge.from.y === edge.to.y) continue;
-      let yMin = Math.max(Math.ceil(edge.from.y - 0.5), 0);
-      let yMax = Math.min(Math.floor(edge.to.y - 0.5), this.renderSize.y - 1);
+
+      const dir = edge.from.y < edge.to.y ? 1 : -1;
+      const yStart = dir === 1 ? edge.from.y : edge.to.y;
+      const yEnd = dir === 1 ? edge.to.y : edge.from.y;
+
+      const yMin = Math.max(Math.ceil(yStart - 0.5), 0);
+      const yMax = Math.min(Math.ceil(yEnd - 0.5) - 1, this.renderSize.y - 1);
+
       for (let y = yMin; y <= yMax; y++) {
         for (
           let x = 0;
@@ -184,26 +190,7 @@ export class FontRenderer {
           );
           x++
         ) {
-          windingNumbers[y][x] += 1;
-        }
-      }
-      yMin = Math.max(Math.ceil(edge.to.y - 0.5), 0);
-      yMax = Math.min(Math.floor(edge.from.y - 0.5), this.renderSize.y - 1);
-      for (let y = yMin; y <= yMax; y++) {
-        for (
-          let x = 0;
-          x <=
-          Math.min(
-            lerp(
-              edge.from.x,
-              edge.to.x,
-              lerp_inverse(edge.from.y, edge.to.y, y + 0.5),
-            ) - 0.5,
-            this.renderSize.x - 1,
-          );
-          x++
-        ) {
-          windingNumbers[y][x] -= 1;
+          windingNumbers[y][x] += dir;
         }
       }
     }

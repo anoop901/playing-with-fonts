@@ -133,6 +133,7 @@ function App() {
       for (let yw = ywMin; yw < ywMax; yw++) {
         for (let xw = xwMin; xw < xwMax; xw++) {
           const windingNumber = windingNumbers[yw] && windingNumbers[yw][xw];
+          const smallDotRadius = 0.05;
           const dotRadius = viewOutline ? 0.4 : 0.5;
           if (windingNumber === 0 || windingNumber === undefined) {
             // ctx.strokeRect(
@@ -141,6 +142,12 @@ function App() {
             //   2 * dotRadius,
             //   2 * dotRadius,
             // );
+            ctx.fillRect(
+              xw + 0.5 - smallDotRadius,
+              yw + 0.5 - smallDotRadius,
+              2 * smallDotRadius,
+              2 * smallDotRadius,
+            );
           } else {
             ctx.fillRect(
               xw + 0.5 - dotRadius,

@@ -148,9 +148,15 @@ function App() {
       for (let yw = ywMin; yw < ywMax; yw++) {
         for (let xw = xwMin; xw < xwMax; xw++) {
           const windingNumber = windingNumbers[yw][xw];
-          const dotRadius =
-            windingNumber === 0 ? 0.05 : viewOutline ? 0.35 : 0.45;
-          ctx.fillRect(
+          const dotRadius = viewOutline ? 0.35 : 0.5;
+
+          const rectFn =
+            windingNumber !== 0
+              ? ctx.fillRect.bind(ctx)
+              : viewOutline
+                ? ctx.strokeRect.bind(ctx)
+                : () => {};
+          rectFn(
             xw + 0.5 - dotRadius,
             yw + 0.5 - dotRadius,
             2 * dotRadius,
@@ -188,10 +194,9 @@ function App() {
 
     // Mark the origin of the first glyph
     const originW = fontRenderers[0].glyphCoordToRenderCoord(Vector2.ZERO);
-    ctx.strokeStyle = "red";
     ctx.fillStyle = "red";
-    ctx.lineWidth = 0.03;
-    ctx.strokeRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
+    ctx.lineWidth = 0.05;
+    ctx.fillRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
   }, [
     drawGlyph,
     drawPixelGrid,

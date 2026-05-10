@@ -21,6 +21,42 @@ function decasteljauSplitQuadBezier(
   ];
 }
 
+function processContours(
+  glyph: GlyphData,
+  transformedPoints: PointOnContour[],
+  decasteljauIters: number = 3,
+) {
+  // Put the points of each contour in a separate array
+  let startPointIndex = 0;
+  const pointsSplitByContour = [];
+  for (const contour of glyph.contours) {
+    pointsSplitByContour.push(
+      transformedPoints.slice(startPointIndex, contour + 1),
+    );
+    startPointIndex = contour + 1;
+  }
+
+  const processedContours = [];
+
+  for (let pointsInContour of pointsSplitByContour) {
+    pointsInContour = insertImpliedOnCurvePoints(pointsInContour);
+    // Interpolate curves using De Casteljau's Algorithm decasteljauIters times
+    for (
+      let decasteljaui = 0;
+      decasteljaui < decasteljauIters;
+      decasteljaui++
+    ) {
+      pointsInContour = interpolateContour(pointsInContour);
+    }
+    // Remove off-curve points
+    pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
+
+    processedContours.push(pointsInContour.map((pt) => pt.vec));
+  }
+
+  return processedContours;
+}
+
 // Insert implied on-curve points into array. These are the midpoints
 // between any two consecutive off-curve points.
 // Returns a new array, and leaves the input unmodified.
@@ -113,42 +149,12 @@ export class FontRenderer {
     return renderCoord;
   }
 
-  processContours(glyph: GlyphData, decasteljauIters: number = 3) {
-    // Transform all points from outline definition into render coords
-    const transformedPoints = glyph.points.map((pt) => ({
+  // Transform all points from outline definition into render coords
+  transformPoints(glyph: GlyphData): PointOnContour[] {
+    return glyph.points.map((pt) => ({
       vec: this.glyphCoordToRenderCoord(pt.vec),
       onCurve: pt.onCurve,
     }));
-
-    // Put the points of each contour in a separate array
-    let startPointIndex = 0;
-    const pointsSplitByContour = [];
-    for (const contour of glyph.contours) {
-      pointsSplitByContour.push(
-        transformedPoints.slice(startPointIndex, contour + 1),
-      );
-      startPointIndex = contour + 1;
-    }
-
-    const processedContours = [];
-
-    for (let pointsInContour of pointsSplitByContour) {
-      pointsInContour = insertImpliedOnCurvePoints(pointsInContour);
-      // Interpolate curves using De Casteljau's Algorithm decasteljauIters times
-      for (
-        let decasteljaui = 0;
-        decasteljaui < decasteljauIters;
-        decasteljaui++
-      ) {
-        pointsInContour = interpolateContour(pointsInContour);
-      }
-      // Remove off-curve points
-      pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
-
-      processedContours.push(pointsInContour.map((pt) => pt.vec));
-    }
-
-    return processedContours;
   }
 
   calculateWindingNumbers(edges: RenderedEdge[]) {
@@ -193,7 +199,12 @@ export class FontRenderer {
   }
 
   renderGlyph(glyph: GlyphData, decasteljauIters: number = 3) {
-    const processedContours = this.processContours(glyph, decasteljauIters);
+    const transformedPoints = this.transformPoints(glyph);
+    const processedContours = processContours(
+      glyph,
+      transformedPoints,
+      decasteljauIters,
+    );
     const edges = processedContoursToEdges(processedContours);
     const windingNumbers = this.calculateWindingNumbers(edges);
     return { processedContours, windingNumbers };

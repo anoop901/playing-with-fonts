@@ -303,12 +303,15 @@ function App() {
               <>
                 <div>{c}</div>
 
-                <div className="grid grid-cols-8 font-mono">
-                  {instructions.map((inst) => (
-                    <div>
-                      {inst.toString(16).padStart(2, "0").toUpperCase()}
-                    </div>
-                  ))}
+                <div>
+                  <div>(length: {instructions.length})</div>
+                  <div className="grid grid-cols-8 font-mono">
+                    {instructions.map((inst) => (
+                      <div>
+                        {inst.toString(16).padStart(2, "0").toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             );

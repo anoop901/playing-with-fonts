@@ -6,6 +6,8 @@ export class HintingEngine {
   instructions: number[];
   iidx: number = 0;
 
+  stack: number[] = [];
+
   constructor(origPoints: PointOnContour[], instructions: number[]) {
     this.origPoints = origPoints;
     // Deep copy points
@@ -22,26 +24,28 @@ export class HintingEngine {
         break;
       }
     }
+    console.log(
+      "final stack",
+      this.stack.map((x) => "0x" + x.toString(16).toUpperCase()),
+    );
   }
 
   runNextInstruction() {
     const opidx = this.iidx;
     const instruction = this.instructions[this.iidx++];
     if (instruction === 0x40) {
-      const n = this.instructions[this.iidx++];
-      console.log(`${opidx}: NPUSHB[${n}]`);
-      this.runNPUSHB(n);
+      console.log(`${opidx}: NPUSHB`);
+      this.runNPUSHB();
     } else if (instruction === 0x41) {
-      const n = this.instructions[this.iidx++];
-      console.log(`${opidx}: NPUSHW[${n}]`);
-      this.runNPUSHW(n);
+      console.log(`${opidx}: NPUSHW`);
+      this.runNPUSHW();
     } else if (0xb0 <= instruction && instruction <= 0xb7) {
       const abc = instruction & 0x7;
-      console.log(`${opidx}: PUSHB[${abc}]`);
+      console.log(`${opidx}: PUSHB`);
       this.runPUSHB(abc);
     } else if (0xb8 <= instruction && instruction <= 0xbf) {
       const abc = instruction & 0x7;
-      console.log(`${opidx}: PUSHW[${abc}]`);
+      console.log(`${opidx}: PUSHW`);
       this.runPUSHW(abc);
     } else {
       throw new Error(
@@ -50,24 +54,39 @@ export class HintingEngine {
     }
   }
 
-  runNPUSHB(n: number) {
+  pushBytes(n: number) {
+    console.log(`pushing ${n} bytes`);
+    this.stack.push(...this.instructions.slice(this.iidx, this.iidx + n));
     this.iidx += n;
-    // TODO: use stack
   }
 
-  runNPUSHW(n: number) {
+  pushWords(n: number) {
+    console.log(`pushing ${n} words`);
+    for (let i = 0; i < n; i++) {
+      this.stack.push(
+        (this.instructions[this.iidx + i * 2] << 8) |
+          this.instructions[this.iidx + i * 2 + 1],
+      );
+    }
     this.iidx += n * 2;
-    // TODO: use stack
+  }
+
+  runNPUSHB() {
+    const n = this.instructions[this.iidx++];
+    this.pushBytes(n);
+  }
+  runNPUSHW() {
+    const n = this.instructions[this.iidx++];
+    this.pushWords(n);
   }
 
   runPUSHB(abc: number) {
     const n = abc + 1;
-    this.iidx += n;
-    // TODO: use stack
+    this.pushBytes(n);
   }
+
   runPUSHW(abc: number) {
     const n = abc + 1;
-    this.iidx += n * 2;
-    // TODO: use stack
+    this.pushWords(n);
   }
 }

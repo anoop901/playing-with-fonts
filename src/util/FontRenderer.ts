@@ -1,8 +1,9 @@
 import type { PointOnContour, GlyphData } from "../parseFontFile";
+import { HintingEngine } from "./HintingEngine";
 import lerp, { lerp_inverse } from "./lerp";
 import { Vector2 } from "./Vector2";
 
-type RenderedEdge = {
+export type RenderedEdge = {
   from: Vector2;
   to: Vector2;
 };
@@ -119,10 +120,18 @@ export class FontRenderer {
     interpolateCurves: boolean,
   ) {
     // Transform all points from outline definition into render coords
-    const transformedPoints = glyph.points.map((pt) => ({
+    let transformedPoints = glyph.points.map((pt) => ({
       vec: this.glyphCoordToRenderCoord(pt.vec),
       onCurve: pt.onCurve,
     }));
+
+    const hintingEngine = new HintingEngine(
+      transformedPoints,
+      glyph.instructions,
+    );
+    hintingEngine.runAll();
+
+    transformedPoints = hintingEngine.points;
 
     // Put the points of each contour in a separate array
     let startPointIndex = 0;

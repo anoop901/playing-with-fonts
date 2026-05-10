@@ -11,7 +11,7 @@ import {
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData, { type GlyphData } from "./parseFontFile";
-import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
+import defaultFontUrl from "./assets/Georgia.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
 import clamp from "./util/clamp";
@@ -58,7 +58,7 @@ function App() {
       };
     }
   }, [fileData]);
-  const [text, setText] = useState<string>("Hello");
+  const [text, setText] = useState<string>("H");
   const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
   const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
 
@@ -305,7 +305,9 @@ function App() {
 
                 <div className="grid grid-cols-8 font-mono">
                   {instructions.map((inst) => (
-                    <div>{inst.toString(16).padStart(2, "0")}</div>
+                    <div>
+                      {inst.toString(16).padStart(2, "0").toUpperCase()}
+                    </div>
                   ))}
                 </div>
               </>

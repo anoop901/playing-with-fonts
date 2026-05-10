@@ -15,7 +15,7 @@ import {
 import Button from "./components/Button";
 import parseFontData from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
-import { FontRenderer } from "./util/FontRenderer";
+import { renderGlyph } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
 import Input from "./components/Input";
 import Select from "./components/Select";
@@ -70,21 +70,16 @@ function App() {
     });
   }, [fontData, text]);
 
-  const fontRenderers = useMemo(() => {
+  // One origin (cursor position) per glyph — advances by each glyph's advance width
+  const glyphOrigins = useMemo(() => {
     if (!fontData) return [];
     let cursorX = pixelGridOrigin.x;
     return glyphs.map((glyph) => {
-      const renderer = new FontRenderer(
-        new Vector2(cursorX, pixelGridOrigin.y),
-        fontSize,
-        fontData.unitsPerEm,
-        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
-      );
+      const origin = new Vector2(cursorX, pixelGridOrigin.y);
       if (glyph) {
-        cursorX +=
-          (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
+        cursorX += (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
       }
-      return renderer;
+      return origin;
     });
   }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
 
@@ -176,26 +171,34 @@ function App() {
     ctx.resetTransform();
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
-    if (!fontRenderers.length) return;
+    if (!glyphOrigins.length) return;
 
     for (let ci = 0; ci < text.length; ci++) {
       const glyph = glyphs[ci];
       if (glyph == null) continue;
-      const { processedContours, renderedPixels, xMin, yMin } = fontRenderers[ci].renderGlyph(glyph, decasteljauIters);;
+      const origin = glyphOrigins[ci];
+      const { processedContours, renderedPixels, xMin, yMin } = renderGlyph(
+        glyph,
+        origin,
+        fontSize,
+        fontData.unitsPerEm,
+        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+        decasteljauIters,
+      );
       if (viewOutline) {
         drawGlyph(ctx, processedContours);
       }
-      if (viewPixels && glyph != null) {
+      if (viewPixels) {
         drawPixelGrid(ctx, renderedPixels, xMin, yMin);
       }
     }
 
     // Mark the origin of the first glyph
-    const originW = fontRenderers[0].glyphCoordToRenderCoord(Vector2.ZERO);
+    const originW = glyphOrigins[0];
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.05;
     ctx.fillRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
-  }, [decasteljauIters, drawGlyph, drawPixelGrid, fontData, fontRenderers, glyphs, text.length, viewOutline, viewPixels]);
+  }, [decasteljauIters, drawGlyph, drawPixelGrid, fontData, fontSize, glyphOrigins, glyphs, text.length, viewOutline, viewPixels]);
 
   useEffect(() => {
     drawGlyphOnPixelGrid();

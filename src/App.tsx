@@ -10,7 +10,7 @@ import {
   CANVAS_SIZE,
 } from "./constants";
 import Button from "./components/Button";
-import parseFontData from "./parseFontFile";
+import parseFontData, { type GlyphData } from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
@@ -58,35 +58,47 @@ function App() {
       };
     }
   }, [fileData]);
-  const [text, setText] = useState<string>("R");
+  const [text, setText] = useState<string>("Hello");
   const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
   const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
 
-  const firstGlyph = useMemo(() => {
-    const charCode = text.charCodeAt(0) || 0;
-    const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
-    return fontData?.glyphs[glyphIndex];
+  const glyphs = useMemo(() => {
+    return Array.from(text).map((c: string) => {
+      const charCode = c.charCodeAt(0) || 0;
+      const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
+      return fontData?.glyphs[glyphIndex];
+    });
   }, [fontData, text]);
 
-  const fontRenderer = useMemo(() => {
-    if (!fontData) return null;
-    return new FontRenderer(
-      new Vector2(pixelGridOrigin.x, pixelGridOrigin.y),
-      fontSize,
-      fontData.unitsPerEm,
-      new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
-    );
-  }, [fontData, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
+  const fontRenderers = useMemo(() => {
+    if (!fontData) return [];
+    let cursorX = pixelGridOrigin.x;
+    return glyphs.map((glyph) => {
+      const renderer = new FontRenderer(
+        new Vector2(cursorX, pixelGridOrigin.y),
+        fontSize,
+        fontData.unitsPerEm,
+        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+      );
+      if (glyph) {
+        cursorX +=
+          (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
+      }
+      return renderer;
+    });
+  }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
 
-  const { processedContours, windingNumbers } = useMemo(() => {
-    if (!firstGlyph || !fontRenderer) {
-      return { processedContours: [], windingNumbers: [] };
-    }
-    return fontRenderer.renderGlyph(firstGlyph, decasteljauIters, drawCurves);
-  }, [firstGlyph, fontRenderer, decasteljauIters, drawCurves]);
+  const renderResults = useMemo(() => {
+    return glyphs.map((glyph, i) => {
+      const renderer = fontRenderers[i];
+      if (glyph == null || !renderer)
+        return { processedContours: [], windingNumbers: [] };
+      return renderer.renderGlyph(glyph, decasteljauIters, drawCurves);
+    });
+  }, [glyphs, fontRenderers, decasteljauIters, drawCurves]);
 
   const drawGlyph = useCallback(
-    (ctx: CanvasRenderingContext2D) => {
+    (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
       ctx.beginPath();
 
       for (let c = 0; c < processedContours.length; c++) {
@@ -108,17 +120,22 @@ function App() {
       ctx.fillStyle = GLYPH_FILL_COLOR;
       ctx.fill();
     },
-    [processedContours],
+    [],
   );
 
   const drawPixelGrid = useCallback(
-    (ctx: CanvasRenderingContext2D) => {
-      if (firstGlyph == null || fontRenderer == null) return;
-      const transformedBboxMin = fontRenderer.glyphCoordToRenderCoord(
-        new Vector2(firstGlyph.xMin, firstGlyph.yMin),
+    (
+      ctx: CanvasRenderingContext2D,
+      glyph: GlyphData,
+      windingNumbers: number[][],
+      renderer: FontRenderer,
+    ) => {
+      if (glyph == null || renderer == null) return;
+      const transformedBboxMin = renderer.glyphCoordToRenderCoord(
+        new Vector2(glyph.xMin, glyph.yMin),
       );
-      const transformedBboxMax = fontRenderer.glyphCoordToRenderCoord(
-        new Vector2(firstGlyph.xMax, firstGlyph.yMax),
+      const transformedBboxMax = renderer.glyphCoordToRenderCoord(
+        new Vector2(glyph.xMax, glyph.yMax),
       );
       const xwMin = clamp(Math.floor(transformedBboxMin.x), 0, PIXEL_GRID_SIZE);
       const xwMax = clamp(Math.ceil(transformedBboxMax.x), 0, PIXEL_GRID_SIZE);
@@ -142,7 +159,7 @@ function App() {
         }
       }
     },
-    [firstGlyph, fontRenderer, viewOutline, windingNumbers],
+    [viewOutline],
   );
 
   const drawGlyphOnPixelGrid = useCallback(() => {
@@ -154,17 +171,23 @@ function App() {
     ctx.resetTransform();
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
-    if (!fontRenderer) return;
+    if (!fontRenderers.length) return;
 
-    if (viewOutline) {
-      drawGlyph(ctx);
-    }
-    if (viewPixels) {
-      drawPixelGrid(ctx);
+    for (let ci = 0; ci < text.length; ci++) {
+      const renderer = fontRenderers[ci];
+      const glyph = glyphs[ci];
+      const processedContours = renderResults[ci].processedContours;
+      const windingNumbers = renderResults[ci].windingNumbers;
+      if (viewOutline) {
+        drawGlyph(ctx, processedContours);
+      }
+      if (viewPixels && glyph != null) {
+        drawPixelGrid(ctx, glyph, windingNumbers, renderer);
+      }
     }
 
-    // Mark the origin
-    const originW = fontRenderer.glyphCoordToRenderCoord(Vector2.ZERO);
+    // Mark the origin of the first glyph
+    const originW = fontRenderers[0].glyphCoordToRenderCoord(Vector2.ZERO);
     ctx.strokeStyle = "red";
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.03;
@@ -173,7 +196,10 @@ function App() {
     drawGlyph,
     drawPixelGrid,
     fontData,
-    fontRenderer,
+    fontRenderers,
+    glyphs,
+    renderResults,
+    text.length,
     viewOutline,
     viewPixels,
   ]);
@@ -217,7 +243,7 @@ function App() {
             {selectedFile && <span className="">{selectedFile}</span>}
           </div>
         </Labeled>
-        <Labeled label="Character">
+        <Labeled label="Text to render">
           <Input
             type="text"
             value={text}

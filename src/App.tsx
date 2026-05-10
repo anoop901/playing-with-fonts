@@ -293,6 +293,25 @@ function App() {
             onValueChange={(value) => setFontSize(value)}
           />
         </Labeled>
+        <div className="grid grid-cols-[64px_1fr] gap-y-2">
+          <div className="text-heading">Glyph</div>
+          <div className="text-heading">Instructions</div>
+          {Array.from(text).map((c, i) => {
+            const glyph = glyphs[i];
+            const instructions = glyph?.instructions ?? [];
+            return (
+              <>
+                <div>{c}</div>
+
+                <div className="grid grid-cols-8 font-mono">
+                  {instructions.map((inst) => (
+                    <div>{inst.toString(16).padStart(2, "0")}</div>
+                  ))}
+                </div>
+              </>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

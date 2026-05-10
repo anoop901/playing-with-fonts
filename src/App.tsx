@@ -15,7 +15,7 @@ import {
 import Button from "./components/Button";
 import parseFontData from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
-import { renderGlyph } from "./util/FontRenderer";
+import { advanceOriginPastGlyph, renderGlyph } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
 import Input from "./components/Input";
 import Select from "./components/Select";
@@ -27,7 +27,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
-  const [pixelGridOrigin, setPixelGridOrigin] = useState({
+  const [firstGlyphOrigin, setFirstGlyphOrigin] = useState({
     x: PIXEL_GRID_ORIGIN_X,
     y: PIXEL_GRID_ORIGIN_Y,
   });
@@ -74,16 +74,21 @@ function App() {
   // One origin (cursor position) per glyph — advances by each glyph's advance width
   const glyphOrigins = useMemo(() => {
     if (!fontData) return [];
-    let cursorX = pixelGridOrigin.x;
-    return glyphs.map((glyph) => {
-      const origin = new Vector2(cursorX, pixelGridOrigin.y);
+    let cursor = new Vector2(firstGlyphOrigin.x, firstGlyphOrigin.y);
+    const origins = [cursor];
+    for (const glyph of glyphs) {
       if (glyph) {
-        cursorX +=
-          (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
+        cursor = advanceOriginPastGlyph(
+          glyph,
+          cursor,
+          fontSize,
+          fontData.unitsPerEm,
+        );
       }
-      return origin;
-    });
-  }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
+      origins.push(cursor);
+    }
+    return origins;
+  }, [fontData, glyphs, firstGlyphOrigin.x, firstGlyphOrigin.y, fontSize]);
 
   const renderResults = useMemo(() => {
     return glyphs.map((glyph, i) => {
@@ -178,6 +183,18 @@ function App() {
     [viewOutline],
   );
 
+  const drawGlyphOrigins = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      // Mark the origin of the first glyph
+      for (const glyphOrigin of glyphOrigins) {
+        ctx.fillStyle = "red";
+        ctx.lineWidth = 0.05;
+        ctx.fillRect(glyphOrigin.x - 0.1, glyphOrigin.y - 0.1, 0.2, 0.2);
+      }
+    },
+    [glyphOrigins],
+  );
+
   const drawAllGlyphs = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx == null || fontData == null) return;
@@ -186,8 +203,6 @@ function App() {
     ctx.canvas.height = CANVAS_SIZE;
     ctx.resetTransform();
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
-
-    if (!glyphOrigins.length) return;
 
     for (let ci = 0; ci < renderResults.length; ci++) {
       const renderResult = renderResults[ci];
@@ -199,14 +214,17 @@ function App() {
       if (viewPixels) {
         drawGlyphPixels(ctx, renderedPixels, xMin, yMin);
       }
+      drawGlyphOrigins(ctx);
     }
-
-    // Mark the origin of the first glyph
-    const originW = glyphOrigins[0];
-    ctx.fillStyle = "red";
-    ctx.lineWidth = 0.05;
-    ctx.fillRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
-  }, [drawGlyphOutline, drawGlyphPixels, fontData, glyphOrigins, renderResults, viewOutline, viewPixels]);
+  }, [
+    drawGlyphOrigins,
+    drawGlyphOutline,
+    drawGlyphPixels,
+    fontData,
+    renderResults,
+    viewOutline,
+    viewPixels,
+  ]);
 
   useEffect(() => {
     drawAllGlyphs();
@@ -304,14 +322,14 @@ function App() {
             const rect = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
             const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
-            setPixelGridOrigin({ x, y });
+            setFirstGlyphOrigin({ x, y });
           }}
           onPointerMove={(e) => {
             if (!isDragging) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
             const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
-            setPixelGridOrigin({ x, y });
+            setFirstGlyphOrigin({ x, y });
           }}
           onPointerUp={(e) => {
             setIsDragging(false);

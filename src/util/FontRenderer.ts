@@ -105,6 +105,14 @@ function glyphCoordToRenderCoord(
   return origin.add(flippedGlyphCoord);
 }
 
+function glyphDistToRenderDist(
+  glyphDist: number,
+  fontSize: number,
+  unitsPerEm: number,
+): number {
+  return (glyphDist * fontSize) / unitsPerEm;
+}
+
 // ─── Rendering pipeline ───────────────────────────────────────────────────────
 
 function transformPoints(
@@ -249,4 +257,17 @@ export function renderGlyph(
     renderSize,
   );
   return { processedContours, renderedPixels, xMin, yMin };
+}
+
+export function advanceOriginPastGlyph(
+  glyph: GlyphData,
+  origin: Vector2,
+  fontSize: number,
+  unitsPerEm: number,
+): Vector2 {
+  return origin.add(
+    Vector2.right(
+      glyphDistToRenderDist(glyph.hMetrics.advanceWidth, fontSize, unitsPerEm),
+    ),
+  );
 }

@@ -63,10 +63,11 @@ function App() {
   const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
 
   const glyphs = useMemo(() => {
+    if (!fontData) return [];
     return Array.from(text).map((c: string) => {
       const charCode = c.charCodeAt(0) || 0;
       const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
-      return fontData?.glyphs[glyphIndex];
+      return fontData.glyphs[glyphIndex];
     });
   }, [fontData, text]);
 
@@ -77,13 +78,29 @@ function App() {
     return glyphs.map((glyph) => {
       const origin = new Vector2(cursorX, pixelGridOrigin.y);
       if (glyph) {
-        cursorX += (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
+        cursorX +=
+          (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
       }
       return origin;
     });
   }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
 
-  const drawGlyph = useCallback(
+  const renderResults = useMemo(() => {
+    return glyphs.map((glyph, i) => {
+      const origin = glyphOrigins[i];
+      if (glyph == null || fontData == null) return null;
+      return renderGlyph(
+        glyph,
+        origin,
+        fontSize,
+        fontData.unitsPerEm,
+        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+        decasteljauIters,
+      );
+    });
+  }, [glyphs, glyphOrigins, fontData, fontSize, decasteljauIters]);
+
+  const drawGlyphOutline = useCallback(
     (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
       ctx.beginPath();
 
@@ -126,7 +143,7 @@ function App() {
     [viewPixels],
   );
 
-  const drawPixelGrid = useCallback(
+  const drawGlyphPixels = useCallback(
     (
       ctx: CanvasRenderingContext2D,
       renderedPixels: boolean[][],
@@ -144,12 +161,11 @@ function App() {
           const renderedPixel = renderedPixels[dy][dx];
           const dotRadius = viewOutline ? 0.35 : 0.5;
 
-          const rectFn =
-            renderedPixel
-              ? ctx.fillRect.bind(ctx)
-              : viewOutline
-                ? ctx.strokeRect.bind(ctx)
-                : () => {};
+          const rectFn = renderedPixel
+            ? ctx.fillRect.bind(ctx)
+            : viewOutline
+              ? ctx.strokeRect.bind(ctx)
+              : () => {};
           rectFn(
             xw + 0.5 - dotRadius,
             yw + 0.5 - dotRadius,
@@ -162,7 +178,7 @@ function App() {
     [viewOutline],
   );
 
-  const drawGlyphOnPixelGrid = useCallback(() => {
+  const drawAllGlyphs = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx == null || fontData == null) return;
 
@@ -173,23 +189,15 @@ function App() {
 
     if (!glyphOrigins.length) return;
 
-    for (let ci = 0; ci < text.length; ci++) {
-      const glyph = glyphs[ci];
-      if (glyph == null) continue;
-      const origin = glyphOrigins[ci];
-      const { processedContours, renderedPixels, xMin, yMin } = renderGlyph(
-        glyph,
-        origin,
-        fontSize,
-        fontData.unitsPerEm,
-        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
-        decasteljauIters,
-      );
+    for (let ci = 0; ci < renderResults.length; ci++) {
+      const renderResult = renderResults[ci];
+      if (renderResult == null) continue;
+      const { processedContours, renderedPixels, xMin, yMin } = renderResult;
       if (viewOutline) {
-        drawGlyph(ctx, processedContours);
+        drawGlyphOutline(ctx, processedContours);
       }
       if (viewPixels) {
-        drawPixelGrid(ctx, renderedPixels, xMin, yMin);
+        drawGlyphPixels(ctx, renderedPixels, xMin, yMin);
       }
     }
 
@@ -198,11 +206,11 @@ function App() {
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.05;
     ctx.fillRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
-  }, [decasteljauIters, drawGlyph, drawPixelGrid, fontData, fontSize, glyphOrigins, glyphs, text.length, viewOutline, viewPixels]);
+  }, [drawGlyphOutline, drawGlyphPixels, fontData, glyphOrigins, renderResults, viewOutline, viewPixels]);
 
   useEffect(() => {
-    drawGlyphOnPixelGrid();
-  }, [drawGlyphOnPixelGrid]);
+    drawAllGlyphs();
+  }, [drawAllGlyphs]);
 
   const Settings = (
     <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground font-semibold">

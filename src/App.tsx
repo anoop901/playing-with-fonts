@@ -185,7 +185,7 @@ function App() {
   const Settings = (
     <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground">
       {/* Header */}
-      <div className="px-4 py-2 bg-background-2 border-b-2 border-border">
+      <div className="px-4 py-2 bg-background-2 border-b border-border">
         <h2 className="uppercase text-heading font-semibold tracking-wide">
           Settings
         </h2>
@@ -261,8 +261,8 @@ function App() {
 
         <Labeled label="Font Size">
           <Slider
-            min={0}
-            max={100}
+            min={6}
+            max={96}
             step={1}
             value={fontSize}
             format={(x) => `${x}px`}
@@ -274,7 +274,7 @@ function App() {
   );
 
   return (
-    <div className="min-h-full flex flex-row items-start justify-center py-4 gap-2">
+    <div className="min-h-full flex flex-row items-start justify-center py-4 gap-2 text-sm">
       <div className="flex flex-col items-start">
         <canvas
           ref={canvasRef}

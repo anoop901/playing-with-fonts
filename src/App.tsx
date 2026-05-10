@@ -8,6 +8,9 @@ import {
   PIXEL_GRID_ORIGIN_X,
   PIXEL_GRID_DOT_COLOR,
   CANVAS_SIZE,
+  CONTOUR_POINT_ON_CURVE_COLOR,
+  CONTOUR_POINT_RADIUS,
+  CONTOUR_LINE_WIDTH,
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData, { type GlyphData } from "./parseFontFile";
@@ -115,10 +118,27 @@ function App() {
       }
 
       // Fill all the subpaths at once
+      ctx.lineWidth = CONTOUR_LINE_WIDTH;
       ctx.fillStyle = GLYPH_FILL_COLOR;
+      ctx.strokeStyle = CONTOUR_POINT_ON_CURVE_COLOR;
       ctx.fill();
+      ctx.stroke();
+
+      if (!viewPixels) {
+        ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
+        for (const contour of processedContours) {
+          for (const pt of contour) {
+            ctx.fillRect(
+              pt.x - CONTOUR_POINT_RADIUS,
+              pt.y - CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+            );
+          }
+        }
+      }
     },
-    [],
+    [viewPixels],
   );
 
   const drawPixelGrid = useCallback(
@@ -140,6 +160,7 @@ function App() {
       const ywMin = clamp(Math.floor(transformedBboxMax.y), 0, PIXEL_GRID_SIZE);
       const ywMax = clamp(Math.ceil(transformedBboxMin.y), 0, PIXEL_GRID_SIZE);
 
+      ctx.strokeStyle = PIXEL_GRID_DOT_COLOR;
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
       ctx.lineWidth = 0.03;
 

@@ -19,7 +19,7 @@ export default function Select({
     >
       {options.map(({ name, value }) => (
         <div
-          className={`px-2 py-1 rounded font-semibold ${currentValue === value ? "bg-primary text-primary-foreground" : "hover:bg-background-2"} hover:scale-105 active:scale-100 transition`}
+          className={`px-2 py-1 rounded ${currentValue === value ? "bg-primary text-primary-foreground" : "hover:bg-background-2"} cursor-pointer transition`}
           onClick={() => onChange(value)}
         >
           {name}

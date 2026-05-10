@@ -7,7 +7,7 @@ export default function Labeled({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="uppercase text-heading text-sm tracking-wide font-semibold">
+      <label className="text-heading tracking-wide">
         {label}
       </label>
       {children}

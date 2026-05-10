@@ -8,8 +8,8 @@
 }
 
 @theme {
-  --color-foreground: var(--color-mist-800);
-  --color-heading: var(--color-mist-500);
+  --color-foreground: var(--color-mist-500);
+  --color-heading: var(--color-mist-800);
   --color-border: var(--color-mist-500);
   --color-border-weak: var(--color-mist-200);
   --color-background: var(--color-mist-50);

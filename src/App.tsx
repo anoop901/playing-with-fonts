@@ -183,12 +183,10 @@ function App() {
   }, [drawGlyphOnPixelGrid]);
 
   const Settings = (
-    <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground">
+    <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground font-semibold">
       {/* Header */}
       <div className="px-4 py-2 bg-background-2 border-b border-border">
-        <h2 className="uppercase text-heading font-semibold tracking-wide">
-          Settings
-        </h2>
+        <h2 className="uppercase text-heading tracking-wide">Settings</h2>
       </div>
 
       <div className="px-4 py-2 flex flex-col gap-4 bg-background">

@@ -113,11 +113,7 @@ export class FontRenderer {
     return renderCoord;
   }
 
-  processContours(
-    glyph: GlyphData,
-    decasteljauIters: number = 3,
-    interpolateCurves: boolean,
-  ) {
+  processContours(glyph: GlyphData, decasteljauIters: number = 3) {
     // Transform all points from outline definition into render coords
     const transformedPoints = glyph.points.map((pt) => ({
       vec: this.glyphCoordToRenderCoord(pt.vec),
@@ -138,18 +134,16 @@ export class FontRenderer {
 
     for (let pointsInContour of pointsSplitByContour) {
       pointsInContour = insertImpliedOnCurvePoints(pointsInContour);
-      if (interpolateCurves) {
-        // Interpolate curves using De Casteljau's Algorithm decasteljauIters times
-        for (
-          let decasteljaui = 0;
-          decasteljaui < decasteljauIters;
-          decasteljaui++
-        ) {
-          pointsInContour = interpolateContour(pointsInContour);
-        }
-        // Remove off-curve points before drawing
-        pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
+      // Interpolate curves using De Casteljau's Algorithm decasteljauIters times
+      for (
+        let decasteljaui = 0;
+        decasteljaui < decasteljauIters;
+        decasteljaui++
+      ) {
+        pointsInContour = interpolateContour(pointsInContour);
       }
+      // Remove off-curve points
+      pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
 
       processedContours.push(pointsInContour.map((pt) => pt.vec));
     }
@@ -198,16 +192,8 @@ export class FontRenderer {
     return windingNumbers;
   }
 
-  renderGlyph(
-    glyph: GlyphData,
-    decasteljauIters: number = 3,
-    interpolateCurves: boolean,
-  ) {
-    const processedContours = this.processContours(
-      glyph,
-      decasteljauIters,
-      interpolateCurves,
-    );
+  renderGlyph(glyph: GlyphData, decasteljauIters: number = 3) {
+    const processedContours = this.processContours(glyph, decasteljauIters);
     const edges = processedContoursToEdges(processedContours);
     const windingNumbers = this.calculateWindingNumbers(edges);
     return { processedContours, windingNumbers };

@@ -18,7 +18,6 @@ import clamp from "./util/clamp";
 import Input from "./components/Input";
 import Select from "./components/Select";
 import Labeled from "./components/Labeled";
-import Toggle from "./components/Toggle";
 import Slider from "./components/Slider";
 
 function App() {
@@ -26,7 +25,6 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
-  const [drawCurves, setDrawCurves] = useState<boolean>(true);
   const [pixelGridOrigin, setPixelGridOrigin] = useState({
     x: PIXEL_GRID_ORIGIN_X,
     y: PIXEL_GRID_ORIGIN_Y,
@@ -93,9 +91,9 @@ function App() {
       const renderer = fontRenderers[i];
       if (glyph == null || !renderer)
         return { processedContours: [], windingNumbers: [] };
-      return renderer.renderGlyph(glyph, decasteljauIters, drawCurves);
+      return renderer.renderGlyph(glyph, decasteljauIters);
     });
-  }, [glyphs, fontRenderers, decasteljauIters, drawCurves]);
+  }, [glyphs, fontRenderers, decasteljauIters]);
 
   const drawGlyph = useCallback(
     (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
@@ -270,23 +268,15 @@ function App() {
           />
         </Labeled>
 
-        <Toggle
-          label={"Draw curves"}
-          checked={drawCurves}
-          onCheckedChange={(checked) => setDrawCurves(checked)}
-        />
-
-        {drawCurves && (
-          <Labeled label="De Casteljau Iterations">
-            <Slider
-              min={0}
-              max={3}
-              step={1}
-              value={decasteljauIters}
-              onValueChange={(value) => setDecasteljauIters(value)}
-            />
-          </Labeled>
-        )}
+        <Labeled label="De Casteljau Iterations">
+          <Slider
+            min={0}
+            max={3}
+            step={1}
+            value={decasteljauIters}
+            onValueChange={(value) => setDecasteljauIters(value)}
+          />
+        </Labeled>
 
         <Labeled label="Font Size">
           <Slider

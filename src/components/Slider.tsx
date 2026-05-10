@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { lerp_inverse } from "../util/lerp";
 import clamp from "../util/clamp";
 
@@ -22,6 +22,7 @@ export default function Slider({
     accumValue: number;
     sensitivity: number;
   } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   function startDrag(e: React.PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -31,6 +32,7 @@ export default function Slider({
       sensitivity: (Number(max) - Number(min)) / rect.width,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
   }
 
   function updateDrag(e: React.PointerEvent<HTMLDivElement>) {
@@ -47,13 +49,14 @@ export default function Slider({
 
   function stopDrag(e: React.PointerEvent<HTMLDivElement>) {
     dragRef.current = null;
+    setIsDragging(false);
     e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
   return (
     <div className="flex items-center">
       <div
-        className="px-2 py-1 grow rounded border-2 border-border-weak hover:border-border transition cursor-ew-resize select-none"
+        className={`px-2 py-1 grow rounded border-2 border-border-weak transition cursor-ew-resize select-none ${isDragging ? "border-primary" : "hover:border-border"}`}
         style={{
           background: `linear-gradient(to right, var(--color-primary-weak) ${pct}%, var(--color-background-input) ${pct}%)`,
         }}

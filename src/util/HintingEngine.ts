@@ -1,4 +1,5 @@
 import type { PointOnContour } from "../parseFontFile";
+import { Vector2 } from "./Vector2";
 
 function formatHex(n: number, numDigits: number = 8) {
   return "0x" + n.toString(16).padStart(numDigits, "0").toUpperCase();
@@ -16,19 +17,26 @@ export class HintingEngine {
   instructions: number[];
   iidx: number = 0;
 
-  cvt: number[] = [];
+  cvt: number[];
 
   stack: number[] = [];
   rp0: number = 0;
   rp1: number = 0;
   rp2: number = 0;
   loop: number = 1;
+  freedomVector = new Vector2(1, 0);
+  projectionVector = new Vector2(1, 0);
 
-  constructor(origPoints: PointOnContour[], instructions: number[]) {
+  constructor(
+    origPoints: PointOnContour[],
+    instructions: number[],
+    cvt: number[] = [],
+  ) {
     this.origPoints = origPoints;
     // Deep copy points
     this.points = origPoints.map((x) => ({ vec: x.vec, onCurve: x.onCurve }));
     this.instructions = instructions;
+    this.cvt = cvt;
   }
 
   runAll() {
@@ -189,14 +197,65 @@ export class HintingEngine {
     this.rp2 = this.pop();
   }
 
-  runMIRP(a: number, b: number, c: number, de: number) {
+  runMIRP(a: number, b: number, c: number, _de: number) {
+    // TODO: review this AI-gen code
     const cvtEntryNumber = this.pop();
     const pointNumber = this.pop();
-    console.log({ cvtEntryNumber, pointNumber });
+
+    const pv = this.projectionVector;
+    const fv = this.freedomVector;
+    const rp0Vec = this.points[this.rp0].vec;
+    const ptVec = this.points[pointNumber].vec;
+
+    // Current signed distance from rp0 to point along projection vector
+    const delta = ptVec.subtract(rp0Vec);
+    const currentDistance = delta.x * pv.x + delta.y * pv.y;
+
+    // CVT value (already in pixel units). Preserve the sign of the current distance.
+    const cvtDistance = this.cvt[cvtEntryNumber] ?? 0;
+    const sign = currentDistance >= 0 ? 1 : -1;
+    const signedCvt = sign * Math.abs(cvtDistance);
+
+    // Round to nearest grid unit (simplified; ignores _de distance-type flags)
+    const roundedCvt = Math.round(signedCvt);
+
+    // CVT cut-in: if the rounded CVT value is too far from the actual outline
+    // distance, fall back to the unrounded outline distance instead.
+    const cutIn = 17 / 16; // default TrueType cut-in (17/16 pixels)
+    let targetDistance: number;
+    if (c && Math.abs(roundedCvt - currentDistance) > cutIn) {
+      targetDistance = currentDistance; // use outline distance, no rounding
+    } else {
+      targetDistance = roundedCvt;
+    }
+
+    // Minimum distance (flag b): don't let the distance collapse to zero
+    const minDist = 1;
+    if (b) {
+      if (targetDistance >= 0 && targetDistance < minDist) {
+        targetDistance = minDist;
+      } else if (targetDistance < 0 && targetDistance > -minDist) {
+        targetDistance = -minDist;
+      }
+    }
+
+    // Move point along freedomVector so its projected distance from rp0 equals targetDistance.
+    // Solve: currentDistance + t * (fv · pv) = targetDistance
+    const fvDotPv = fv.x * pv.x + fv.y * pv.y;
+    if (Math.abs(fvDotPv) > 1e-10) {
+      const t = (targetDistance - currentDistance) / fvDotPv;
+      this.points[pointNumber] = {
+        ...this.points[pointNumber],
+        vec: ptVec.add(fv.times(t)),
+      };
+    }
+
+    // Reference point update: rp1 ← old rp0, rp2 ← moved point
+    this.rp1 = this.rp0;
+    this.rp2 = pointNumber;
     if (a) {
       this.rp0 = pointNumber;
     }
-    // TODO
   }
 
   runCALL() {

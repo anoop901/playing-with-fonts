@@ -91,17 +91,20 @@ export class FontRenderer {
   fontSize: number;
   unitsPerEm: number;
   renderSize: Vector2;
+  cvtPixels: number[];
 
   constructor(
     origin: Vector2,
     fontSize: number,
     unitsPerEm: number,
     renderSize: Vector2,
+    cvt: number[] = [],
   ) {
     this.origin = origin;
     this.fontSize = fontSize;
     this.unitsPerEm = unitsPerEm;
     this.renderSize = renderSize;
+    this.cvtPixels = cvt.map((v) => (v * fontSize) / unitsPerEm);
   }
 
   glyphCoordToRenderCoord(glyphCoord: Vector2) {
@@ -128,6 +131,7 @@ export class FontRenderer {
     const hintingEngine = new HintingEngine(
       transformedPoints,
       glyph.instructions,
+      this.cvtPixels,
     );
     hintingEngine.runAll();
 

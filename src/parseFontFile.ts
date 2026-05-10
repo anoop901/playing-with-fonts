@@ -379,6 +379,16 @@ export default function parseFontData(data: Uint8Array) {
     }
   }
 
+  const cvtTableEntry = tableDirectory.get("cvt ");
+  const cvt: number[] = [];
+  if (cvtTableEntry != null) {
+    offset = cvtTableEntry.offset;
+    const numEntries = cvtTableEntry.length / 2;
+    for (let i = 0; i < numEntries; i++) {
+      cvt.push(readInt16());
+    }
+  }
+
   return {
     numTables,
     glyphs,
@@ -386,5 +396,6 @@ export default function parseFontData(data: Uint8Array) {
     ascender,
     descender,
     lookupGlyphIndex,
+    cvt,
   };
 }

@@ -79,6 +79,7 @@ function App() {
         fontSize,
         fontData.unitsPerEm,
         new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+        fontData.cvt,
       );
       if (glyph) {
         cursorX +=

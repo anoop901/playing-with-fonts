@@ -13,11 +13,10 @@ import {
   CONTOUR_LINE_WIDTH,
 } from "./constants";
 import Button from "./components/Button";
-import parseFontData, { type GlyphData } from "./parseFontFile";
+import parseFontData from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { FontRenderer } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
-import clamp from "./util/clamp";
 import Input from "./components/Input";
 import Select from "./components/Select";
 import Labeled from "./components/Labeled";
@@ -89,15 +88,6 @@ function App() {
     });
   }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
 
-  const renderResults = useMemo(() => {
-    return glyphs.map((glyph, i) => {
-      const renderer = fontRenderers[i];
-      if (glyph == null || !renderer)
-        return { processedContours: [], windingNumbers: [] };
-      return renderer.renderGlyph(glyph, decasteljauIters);
-    });
-  }, [glyphs, fontRenderers, decasteljauIters]);
-
   const drawGlyph = useCallback(
     (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
       ctx.beginPath();
@@ -144,33 +134,23 @@ function App() {
   const drawPixelGrid = useCallback(
     (
       ctx: CanvasRenderingContext2D,
-      glyph: GlyphData,
-      windingNumbers: number[][],
-      renderer: FontRenderer,
+      renderedPixels: boolean[][],
+      xMin: number,
+      yMin: number,
     ) => {
-      if (glyph == null || renderer == null) return;
-      const transformedBboxMin = renderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMin, glyph.yMin),
-      );
-      const transformedBboxMax = renderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMax, glyph.yMax),
-      );
-      const xwMin = clamp(Math.floor(transformedBboxMin.x), 0, PIXEL_GRID_SIZE);
-      const xwMax = clamp(Math.ceil(transformedBboxMax.x), 0, PIXEL_GRID_SIZE);
-      const ywMin = clamp(Math.floor(transformedBboxMax.y), 0, PIXEL_GRID_SIZE);
-      const ywMax = clamp(Math.ceil(transformedBboxMin.y), 0, PIXEL_GRID_SIZE);
-
       ctx.strokeStyle = PIXEL_GRID_DOT_COLOR;
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
       ctx.lineWidth = 0.03;
 
-      for (let yw = ywMin; yw < ywMax; yw++) {
-        for (let xw = xwMin; xw < xwMax; xw++) {
-          const windingNumber = windingNumbers[yw][xw];
+      for (let dy = 0; dy < renderedPixels.length; dy++) {
+        for (let dx = 0; dx < renderedPixels[dy].length; dx++) {
+          const xw = dx + xMin;
+          const yw = dy + yMin;
+          const renderedPixel = renderedPixels[dy][dx];
           const dotRadius = viewOutline ? 0.35 : 0.5;
 
           const rectFn =
-            windingNumber !== 0
+            renderedPixel
               ? ctx.fillRect.bind(ctx)
               : viewOutline
                 ? ctx.strokeRect.bind(ctx)
@@ -199,15 +179,14 @@ function App() {
     if (!fontRenderers.length) return;
 
     for (let ci = 0; ci < text.length; ci++) {
-      const renderer = fontRenderers[ci];
       const glyph = glyphs[ci];
-      const processedContours = renderResults[ci].processedContours;
-      const windingNumbers = renderResults[ci].windingNumbers;
+      if (glyph == null) continue;
+      const { processedContours, renderedPixels, xMin, yMin } = fontRenderers[ci].renderGlyph(glyph, decasteljauIters);;
       if (viewOutline) {
         drawGlyph(ctx, processedContours);
       }
       if (viewPixels && glyph != null) {
-        drawPixelGrid(ctx, glyph, windingNumbers, renderer);
+        drawPixelGrid(ctx, renderedPixels, xMin, yMin);
       }
     }
 
@@ -216,17 +195,7 @@ function App() {
     ctx.fillStyle = "red";
     ctx.lineWidth = 0.05;
     ctx.fillRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
-  }, [
-    drawGlyph,
-    drawPixelGrid,
-    fontData,
-    fontRenderers,
-    glyphs,
-    renderResults,
-    text.length,
-    viewOutline,
-    viewPixels,
-  ]);
+  }, [decasteljauIters, drawGlyph, drawPixelGrid, fontData, fontRenderers, glyphs, text.length, viewOutline, viewPixels]);
 
   useEffect(() => {
     drawGlyphOnPixelGrid();

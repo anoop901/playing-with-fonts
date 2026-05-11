@@ -25,6 +25,22 @@ export class Vector2 {
     return this.add(that.neg());
   }
 
+  lengthSq(): number {
+    return this.x * this.x + this.y + this.y;
+  }
+
+  length(): number {
+    return Math.sqrt(this.lengthSq());
+  }
+
+  distanceSq(that: Vector2) {
+    return this.subtract(that).lengthSq();
+  }
+
+  distance(that: Vector2) {
+    return this.subtract(that).length();
+  }
+
   rotate(angle: number) {
     return new Vector2(
       Math.cos(angle) * this.x - Math.sin(angle) * this.y,

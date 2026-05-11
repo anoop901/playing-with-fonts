@@ -1,5 +1,6 @@
 import type { PointOnContour, GlyphData } from "../parseFontFile";
 import { HintingEngine } from "./HintingEngine";
+import clamp from "./clamp";
 import lerp, { lerp_inverse } from "./lerp";
 import { Vector2 } from "./Vector2";
 
@@ -8,17 +9,46 @@ export type RenderedEdge = {
   to: Vector2;
 };
 
-function decasteljauSplitQuadBezier(
+// ─── Curve helpers ────────────────────────────────────────────────────────────
+
+function decasteljauRecursiveSplitQuadBezier(
   pt1: Vector2,
   anchor: Vector2,
   pt2: Vector2,
-) {
+  maxSubdivisions: number = 10,
+  threshold: number = 1,
+): {
+  pt1: Vector2;
+  anchor: Vector2;
+  pt2: Vector2;
+}[] {
+  if (maxSubdivisions === 0) {
+    return [{ pt1, anchor, pt2 }];
+  }
+  const v = pt1.subtract(pt2);
+  const dx = v.x;
+  const dy = v.y;
+  if (Math.abs(dx) + Math.abs(dy) < threshold) {
+    return [{ pt1, anchor, pt2 }];
+  }
   const mid1Anchor = pt1.midpoint(anchor);
   const mid2Anchor = pt2.midpoint(anchor);
   const bezierMidpoint = mid1Anchor.midpoint(mid2Anchor);
   return [
-    { pt1: pt1, anchor: mid1Anchor, pt2: bezierMidpoint },
-    { pt1: bezierMidpoint, anchor: mid2Anchor, pt2: pt2 },
+    ...decasteljauRecursiveSplitQuadBezier(
+      pt1,
+      mid1Anchor,
+      bezierMidpoint,
+      maxSubdivisions - 1,
+      threshold,
+    ),
+    ...decasteljauRecursiveSplitQuadBezier(
+      bezierMidpoint,
+      mid2Anchor,
+      pt2,
+      maxSubdivisions - 1,
+      threshold,
+    ),
   ];
 }
 
@@ -39,6 +69,49 @@ function insertImpliedOnCurvePoints(pointsInContour: PointOnContour[]) {
   return pointsInContourWithImplied;
 }
 
+// For each off-curve point, insert an on-curve point corresponding to t=0.5,
+// and two new off-curve points around it that split the curve in two at this point.
+// Returns a new array, and leaves the input unmodified.
+function interpolateContour(
+  pointsInContour: PointOnContour[],
+  maxSubdivisions: number,
+) {
+  const pointsInContourInterpolated = [];
+  for (let i = 0; i < pointsInContour.length; i++) {
+    const pt = pointsInContour[i];
+    if (!pt.onCurve) {
+      const lastPtV =
+        pointsInContour[
+          (i - 1 + pointsInContour.length) % pointsInContour.length
+        ].vec;
+      const nextPtV = pointsInContour[(i + 1) % pointsInContour.length].vec;
+      const subBeziers = decasteljauRecursiveSplitQuadBezier(
+        lastPtV,
+        pt.vec,
+        nextPtV,
+        maxSubdivisions,
+      );
+      pointsInContourInterpolated.push({
+        onCurve: false,
+        vec: subBeziers[0].anchor,
+      });
+      for (let j = 0; j < subBeziers.length; j++) {
+        pointsInContourInterpolated.push({
+          onCurve: true,
+          vec: subBeziers[j].pt1,
+        });
+        pointsInContourInterpolated.push({
+          onCurve: false,
+          vec: subBeziers[j].anchor,
+        });
+      }
+    } else {
+      pointsInContourInterpolated.push(pt);
+    }
+  }
+  return pointsInContourInterpolated;
+}
+
 function processedContoursToEdges(
   processedContours: Vector2[][],
 ): RenderedEdge[] {
@@ -53,176 +126,221 @@ function processedContoursToEdges(
   return edges;
 }
 
-// For each off-curve point, insert an on-curve point corresponding to t=0.5,
-// and two new off-curve points around it that split the curve in two at this point.
-// Returns a new array, and leaves the input unmodified.
-function interpolateContour(pointsInContour: PointOnContour[]) {
-  const pointsInContourInterpolated = [];
-  for (let i = 0; i < pointsInContour.length; i++) {
-    const pt = pointsInContour[i];
-    if (!pt.onCurve) {
-      const lastPtV =
-        pointsInContour[
-          (i - 1 + pointsInContour.length) % pointsInContour.length
-        ].vec;
-      const nextPtV = pointsInContour[(i + 1) % pointsInContour.length].vec;
-      const subBeziers = decasteljauSplitQuadBezier(lastPtV, pt.vec, nextPtV);
-      pointsInContourInterpolated.push({
-        onCurve: false,
-        vec: subBeziers[0].anchor,
-      });
-      pointsInContourInterpolated.push({
-        onCurve: true,
-        vec: subBeziers[0].pt2,
-      });
-      pointsInContourInterpolated.push({
-        onCurve: false,
-        vec: subBeziers[1].anchor,
-      });
-    } else {
-      pointsInContourInterpolated.push(pt);
-    }
+type BBox = {
+  topLeft: Vector2;
+  bottomRight: Vector2;
+};
+
+function computeBbox(
+  contour: Vector2[],
+  rounded: boolean = false,
+  clampBoundary?: BBox,
+): BBox {
+  let xMin = Infinity,
+    xMax = -Infinity;
+  let yMin = Infinity,
+    yMax = -Infinity;
+  for (const pt of contour) {
+    xMin = Math.min(xMin, pt.x);
+    xMax = Math.max(xMax, pt.x);
+    yMin = Math.min(yMin, pt.y);
+    yMax = Math.max(yMax, pt.y);
   }
-  return pointsInContourInterpolated;
+
+  if (rounded) {
+    // Snap to integer pixel boundaries, clamped to the render area
+    xMin = Math.floor(xMin);
+    xMax = Math.ceil(xMax);
+    yMin = Math.floor(yMin);
+    yMax = Math.ceil(yMax);
+  }
+
+  if (clampBoundary != null) {
+    xMin = clamp(xMin, clampBoundary.topLeft.x, clampBoundary.bottomRight.x);
+    xMax = clamp(xMax, clampBoundary.topLeft.x, clampBoundary.bottomRight.x);
+    yMin = clamp(yMin, clampBoundary.topLeft.y, clampBoundary.bottomRight.y);
+    yMax = clamp(yMax, clampBoundary.topLeft.y, clampBoundary.bottomRight.y);
+  }
+
+  return {
+    topLeft: new Vector2(xMin, yMin),
+    bottomRight: new Vector2(xMax, yMax),
+  };
 }
 
-export class FontRenderer {
-  origin: Vector2;
-  fontSize: number;
-  unitsPerEm: number;
-  renderSize: Vector2;
-  cvtPixels: number[];
+// ─── Coordinate transform ─────────────────────────────────────────────────────
 
-  constructor(
-    origin: Vector2,
-    fontSize: number,
-    unitsPerEm: number,
-    renderSize: Vector2,
-    cvt: number[] = [],
-  ) {
-    this.origin = origin;
-    this.fontSize = fontSize;
-    this.unitsPerEm = unitsPerEm;
-    this.renderSize = renderSize;
-    this.cvtPixels = cvt.map((v) => (v * fontSize) / unitsPerEm);
+function glyphCoordToRenderCoord(
+  glyphCoord: Vector2,
+  origin: Vector2,
+  fontSize: number,
+  unitsPerEm: number,
+): Vector2 {
+  const scaledGlyphCoord = glyphCoord.times(fontSize / unitsPerEm);
+  // y-axis is flipped: glyph space has y pointing up, canvas has y pointing down
+  const flippedGlyphCoord = new Vector2(
+    scaledGlyphCoord.x,
+    -scaledGlyphCoord.y,
+  );
+  return origin.add(flippedGlyphCoord);
+}
+
+function glyphDistToRenderDist(
+  glyphDist: number,
+  fontSize: number,
+  unitsPerEm: number,
+): number {
+  return (glyphDist * fontSize) / unitsPerEm;
+}
+
+// ─── Rendering pipeline ───────────────────────────────────────────────────────
+
+function transformPoints(
+  glyph: GlyphData,
+  origin: Vector2,
+  fontSize: number,
+  unitsPerEm: number,
+): PointOnContour[] {
+  return glyph.points.map((pt) => ({
+    vec: glyphCoordToRenderCoord(pt.vec, origin, fontSize, unitsPerEm),
+    onCurve: pt.onCurve,
+  }));
+}
+
+function splitPointsIntoContours(
+  points: PointOnContour[],
+  glyph: GlyphData,
+): PointOnContour[][] {
+  let startPointIndex = 0;
+  const pointsSplitByContour = [];
+  for (const contour of glyph.contours) {
+    pointsSplitByContour.push(points.slice(startPointIndex, contour + 1));
+    startPointIndex = contour + 1;
+  }
+  return pointsSplitByContour;
+}
+
+function processedContoursToRenderedPixels(
+  processedContours: Vector2[][],
+  renderSize: Vector2,
+): {
+  windingNumbers: number[][];
+  renderedPixels: boolean[][];
+  xMin: number;
+  yMin: number;
+} {
+  if (processedContours.length === 0) {
+    return { windingNumbers: [], renderedPixels: [], xMin: 0, yMin: 0 };
   }
 
-  glyphCoordToRenderCoord(glyphCoord: Vector2) {
-    const scaledGlyphCoord = glyphCoord.times(this.fontSize / this.unitsPerEm);
-    const flippedGlyphCoord = new Vector2(
-      scaledGlyphCoord.x,
-      -scaledGlyphCoord.y,
-    );
-    const renderCoord = this.origin.add(flippedGlyphCoord);
-    return renderCoord;
+  // Compute bounding box of all the points (rounded to integer)
+  const bbox = computeBbox(processedContours.flat(2), true, {
+    topLeft: new Vector2(0, 0),
+    bottomRight: renderSize,
+  });
+  const xMin = bbox.topLeft.x;
+  const xMax = bbox.bottomRight.x;
+  const yMin = bbox.topLeft.y;
+  const yMax = bbox.bottomRight.y;
+
+  const edges = processedContoursToEdges(processedContours);
+
+  // Allocate the subgrid that contains the glyph
+  const windingNumbers: number[][] = Array.from({ length: yMax - yMin }, () =>
+    new Array(xMax - xMin).fill(0),
+  );
+
+  for (const edge of edges) {
+    if (edge.from.y === edge.to.y) continue;
+
+    // +1 or -1 depending on whether the edge goes upward or downward
+    const dir = edge.from.y < edge.to.y ? 1 : -1;
+
+    // Add dir to the winding number of every pixel such that the
+    // rightward-pointing ray starting at the pixel's center intersects this edge.
+    const yStart = dir === 1 ? edge.from.y : edge.to.y;
+    const yEnd = dir === 1 ? edge.to.y : edge.from.y;
+    const edgeYMin = Math.max(Math.ceil(yStart - 0.5), yMin);
+    const edgeYMax = Math.min(Math.ceil(yEnd - 0.5) - 1, yMax - 1);
+    for (let y = edgeYMin; y <= edgeYMax; y++) {
+      const xLimit = Math.min(
+        lerp(
+          edge.from.x,
+          edge.to.x,
+          lerp_inverse(edge.from.y, edge.to.y, y + 0.5),
+        ) - 0.5,
+        xMax - 1,
+      );
+      for (let x = xMin; x <= xLimit; x++) {
+        windingNumbers[y - yMin][x - xMin] += dir;
+      }
+    }
   }
 
-  processContours(
-    glyph: GlyphData,
-    decasteljauIters: number = 3,
-    interpolateCurves: boolean,
-  ) {
-    // Transform all points from outline definition into render coords
-    let transformedPoints = glyph.points.map((pt) => ({
-      vec: this.glyphCoordToRenderCoord(pt.vec),
-      onCurve: pt.onCurve,
-    }));
+  // Map winding numbers to filled/unfilled booleans
+  const renderedPixels: boolean[][] = Array.from(
+    { length: yMax - yMin },
+    (_, dy) =>
+      Array.from(
+        { length: xMax - xMin },
+        (_, dx) => windingNumbers[dy][dx] !== 0,
+      ),
+  );
 
+  return { windingNumbers, renderedPixels, xMin, yMin };
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+export function renderGlyph(
+  glyph: GlyphData,
+  origin: Vector2,
+  fontSize: number,
+  unitsPerEm: number,
+  renderSize: Vector2,
+  maxSubdivisions: number = 3,
+  cvtPixels: number[] = [],
+) {
+  let transformedPoints = transformPoints(
+    glyph,
+    origin,
+    fontSize,
+    unitsPerEm,
+  );
+
+  // Apply TrueType hinting instructions if any are present
+  if (glyph.instructions.length > 0) {
     const hintingEngine = new HintingEngine(
       transformedPoints,
       glyph.instructions,
-      this.cvtPixels,
+      cvtPixels,
     );
     hintingEngine.runAll();
-
     transformedPoints = hintingEngine.points;
-
-    // Put the points of each contour in a separate array
-    let startPointIndex = 0;
-    const pointsSplitByContour = [];
-    for (const contour of glyph.contours) {
-      pointsSplitByContour.push(
-        transformedPoints.slice(startPointIndex, contour + 1),
-      );
-      startPointIndex = contour + 1;
-    }
-
-    const processedContours = [];
-
-    for (let pointsInContour of pointsSplitByContour) {
-      pointsInContour = insertImpliedOnCurvePoints(pointsInContour);
-      if (interpolateCurves) {
-        // Interpolate curves using De Casteljau's Algorithm decasteljauIters times
-        for (
-          let decasteljaui = 0;
-          decasteljaui < decasteljauIters;
-          decasteljaui++
-        ) {
-          pointsInContour = interpolateContour(pointsInContour);
-        }
-        // Remove off-curve points before drawing
-        pointsInContour = pointsInContour.filter((pt) => pt.onCurve);
-      }
-
-      processedContours.push(pointsInContour.map((pt) => pt.vec));
-    }
-
-    return processedContours;
   }
 
-  calculateWindingNumbers(edges: RenderedEdge[]) {
-    const windingNumbers: number[][] = [];
-    for (let y = 0; y < this.renderSize.y; y++) {
-      windingNumbers.push([]);
-      for (let x = 0; x < this.renderSize.x; x++) {
-        windingNumbers[y].push(0);
-      }
-    }
+  const contours = splitPointsIntoContours(transformedPoints, glyph);
+  const processedContours = contours.map((contour) => {
+    contour = insertImpliedOnCurvePoints(contour);
+    contour = interpolateContour(contour, maxSubdivisions);
+    return contour.filter((pt) => pt.onCurve).map((pt) => pt.vec);
+  });
+  const { renderedPixels, xMin, yMin } = processedContoursToRenderedPixels(
+    processedContours,
+    renderSize,
+  );
+  return { transformedPoints, processedContours, renderedPixels, xMin, yMin };
+}
 
-    for (const edge of edges) {
-      if (edge.from.y === edge.to.y) continue;
-
-      const dir = edge.from.y < edge.to.y ? 1 : -1;
-      const yStart = dir === 1 ? edge.from.y : edge.to.y;
-      const yEnd = dir === 1 ? edge.to.y : edge.from.y;
-
-      const yMin = Math.max(Math.ceil(yStart - 0.5), 0);
-      const yMax = Math.min(Math.ceil(yEnd - 0.5) - 1, this.renderSize.y - 1);
-
-      for (let y = yMin; y <= yMax; y++) {
-        for (
-          let x = 0;
-          x <=
-          Math.min(
-            lerp(
-              edge.from.x,
-              edge.to.x,
-              lerp_inverse(edge.from.y, edge.to.y, y + 0.5),
-            ) - 0.5,
-            this.renderSize.x - 1,
-          );
-          x++
-        ) {
-          windingNumbers[y][x] += dir;
-        }
-      }
-    }
-
-    return windingNumbers;
-  }
-
-  renderGlyph(
-    glyph: GlyphData,
-    decasteljauIters: number = 3,
-    interpolateCurves: boolean,
-  ) {
-    const processedContours = this.processContours(
-      glyph,
-      decasteljauIters,
-      interpolateCurves,
-    );
-    const edges = processedContoursToEdges(processedContours);
-    const windingNumbers = this.calculateWindingNumbers(edges);
-    return { processedContours, windingNumbers };
-  }
+export function advanceOriginPastGlyph(
+  glyph: GlyphData,
+  origin: Vector2,
+  fontSize: number,
+  unitsPerEm: number,
+): Vector2 {
+  return origin.add(
+    Vector2.right(
+      glyphDistToRenderDist(glyph.hMetrics.advanceWidth, fontSize, unitsPerEm),
+    ),
+  );
 }

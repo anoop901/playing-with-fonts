@@ -17,8 +17,9 @@ export default function Select({
         (className ?? "")
       }
     >
-      {options.map(({ name, value }) => (
+      {options.map(({ name, value }, i) => (
         <div
+          key={i}
           className={`px-2 py-1 rounded ${currentValue === value ? "bg-primary text-primary-foreground" : "hover:bg-background-2"} cursor-pointer transition`}
           onClick={() => onChange(value)}
         >

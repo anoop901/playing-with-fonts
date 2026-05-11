@@ -8,17 +8,19 @@ import {
   PIXEL_GRID_ORIGIN_X,
   PIXEL_GRID_DOT_COLOR,
   CANVAS_SIZE,
+  CONTOUR_POINT_ON_CURVE_COLOR,
+  CONTOUR_POINT_RADIUS,
+  CONTOUR_LINE_WIDTH,
+  CONTOUR_POINT_OFF_CURVE_COLOR,
 } from "./constants";
 import Button from "./components/Button";
-import parseFontData, { type GlyphData } from "./parseFontFile";
+import parseFontData, { type PointOnContour } from "./parseFontFile";
 import defaultFontUrl from "./assets/Georgia.ttf";
-import { FontRenderer } from "./util/FontRenderer";
+import { advanceOriginPastGlyph, renderGlyph } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
-import clamp from "./util/clamp";
 import Input from "./components/Input";
 import Select from "./components/Select";
 import Labeled from "./components/Labeled";
-import Toggle from "./components/Toggle";
 import Slider from "./components/Slider";
 
 function App() {
@@ -26,8 +28,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileData, setFileData] = useState<Uint8Array | null>(null);
-  const [drawCurves, setDrawCurves] = useState<boolean>(true);
-  const [pixelGridOrigin, setPixelGridOrigin] = useState({
+  const [firstGlyphOrigin, setFirstGlyphOrigin] = useState({
     x: PIXEL_GRID_ORIGIN_X,
     y: PIXEL_GRID_ORIGIN_Y,
   });
@@ -35,7 +36,9 @@ function App() {
   const [viewMode, setViewMode] = useState<"outline" | "pixels" | "both">(
     "both",
   );
-
+  const [viewContourPointsType, setViewContourPointsType] = useState<
+    "original" | "processed"
+  >("original");
   const viewOutline = viewMode == "outline" || viewMode == "both";
   const viewPixels = viewMode == "pixels" || viewMode == "both";
 
@@ -60,46 +63,63 @@ function App() {
   }, [fileData]);
   const [text, setText] = useState<string>("H");
   const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
-  const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
+  const [maxSubdivisions, setMaxSubdivisions] = useState<number>(10);
 
   const glyphs = useMemo(() => {
+    if (!fontData) return [];
     return Array.from(text).map((c: string) => {
       const charCode = c.charCodeAt(0) || 0;
       const glyphIndex = fontData?.lookupGlyphIndex(charCode) ?? 0;
-      return fontData?.glyphs[glyphIndex];
+      return fontData.glyphs[glyphIndex];
     });
   }, [fontData, text]);
 
-  const fontRenderers = useMemo(() => {
+  // One origin (cursor position) per glyph — advances by each glyph's advance width
+  const glyphOrigins = useMemo(() => {
     if (!fontData) return [];
-    let cursorX = pixelGridOrigin.x;
-    return glyphs.map((glyph) => {
-      const renderer = new FontRenderer(
-        new Vector2(cursorX, pixelGridOrigin.y),
-        fontSize,
-        fontData.unitsPerEm,
-        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
-        fontData.cvt,
-      );
+    let cursor = new Vector2(firstGlyphOrigin.x, firstGlyphOrigin.y);
+    const origins = [cursor];
+    for (const glyph of glyphs) {
       if (glyph) {
-        cursorX +=
-          (glyph.hMetrics.advanceWidth * fontSize) / fontData.unitsPerEm;
+        cursor = advanceOriginPastGlyph(
+          glyph,
+          cursor,
+          fontSize,
+          fontData.unitsPerEm,
+        );
       }
-      return renderer;
-    });
-  }, [fontData, glyphs, pixelGridOrigin.x, pixelGridOrigin.y, fontSize]);
+      origins.push(cursor);
+    }
+    return origins;
+  }, [fontData, glyphs, firstGlyphOrigin.x, firstGlyphOrigin.y, fontSize]);
+
+  const cvtPixels = useMemo(() => {
+    if (!fontData) return [];
+    return fontData.cvt.map((v) => (v * fontSize) / fontData.unitsPerEm);
+  }, [fontData, fontSize]);
 
   const renderResults = useMemo(() => {
     return glyphs.map((glyph, i) => {
-      const renderer = fontRenderers[i];
-      if (glyph == null || !renderer)
-        return { processedContours: [], windingNumbers: [] };
-      return renderer.renderGlyph(glyph, decasteljauIters, drawCurves);
+      const origin = glyphOrigins[i];
+      if (glyph == null || fontData == null) return null;
+      return renderGlyph(
+        glyph,
+        origin,
+        fontSize,
+        fontData.unitsPerEm,
+        new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
+        maxSubdivisions,
+        cvtPixels,
+      );
     });
-  }, [glyphs, fontRenderers, decasteljauIters, drawCurves]);
+  }, [glyphs, glyphOrigins, fontData, fontSize, maxSubdivisions, cvtPixels]);
 
-  const drawGlyph = useCallback(
-    (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
+  const drawGlyphOutline = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      transformedPoints: PointOnContour[],
+      processedContours: Vector2[][],
+    ) => {
       ctx.beginPath();
 
       for (let c = 0; c < processedContours.length; c++) {
@@ -118,40 +138,67 @@ function App() {
       }
 
       // Fill all the subpaths at once
+      ctx.lineWidth = CONTOUR_LINE_WIDTH;
       ctx.fillStyle = GLYPH_FILL_COLOR;
+      ctx.strokeStyle = CONTOUR_POINT_ON_CURVE_COLOR;
       ctx.fill();
+      ctx.stroke();
+
+      if (!viewPixels) {
+        if (viewContourPointsType === "original") {
+          for (const pt of transformedPoints) {
+            ctx.fillStyle = pt.onCurve
+              ? CONTOUR_POINT_ON_CURVE_COLOR
+              : CONTOUR_POINT_OFF_CURVE_COLOR;
+            ctx.fillRect(
+              pt.vec.x - CONTOUR_POINT_RADIUS,
+              pt.vec.y - CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+            );
+          }
+        } else {
+          ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
+          for (const contour of processedContours) {
+            for (const pt of contour) {
+              ctx.fillRect(
+                pt.x - CONTOUR_POINT_RADIUS,
+                pt.y - CONTOUR_POINT_RADIUS,
+                2 * CONTOUR_POINT_RADIUS,
+                2 * CONTOUR_POINT_RADIUS,
+              );
+            }
+          }
+        }
+      }
     },
-    [],
+    [viewContourPointsType, viewPixels],
   );
 
-  const drawPixelGrid = useCallback(
+  const drawGlyphPixels = useCallback(
     (
       ctx: CanvasRenderingContext2D,
-      glyph: GlyphData,
-      windingNumbers: number[][],
-      renderer: FontRenderer,
+      renderedPixels: boolean[][],
+      xMin: number,
+      yMin: number,
     ) => {
-      if (glyph == null || renderer == null) return;
-      const transformedBboxMin = renderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMin, glyph.yMin),
-      );
-      const transformedBboxMax = renderer.glyphCoordToRenderCoord(
-        new Vector2(glyph.xMax, glyph.yMax),
-      );
-      const xwMin = clamp(Math.floor(transformedBboxMin.x), 0, PIXEL_GRID_SIZE);
-      const xwMax = clamp(Math.ceil(transformedBboxMax.x), 0, PIXEL_GRID_SIZE);
-      const ywMin = clamp(Math.floor(transformedBboxMax.y), 0, PIXEL_GRID_SIZE);
-      const ywMax = clamp(Math.ceil(transformedBboxMin.y), 0, PIXEL_GRID_SIZE);
-
+      ctx.strokeStyle = PIXEL_GRID_DOT_COLOR;
       ctx.fillStyle = PIXEL_GRID_DOT_COLOR;
       ctx.lineWidth = 0.03;
 
-      for (let yw = ywMin; yw < ywMax; yw++) {
-        for (let xw = xwMin; xw < xwMax; xw++) {
-          const windingNumber = windingNumbers[yw][xw];
-          const dotRadius =
-            windingNumber === 0 ? 0.05 : viewOutline ? 0.35 : 0.45;
-          ctx.fillRect(
+      for (let dy = 0; dy < renderedPixels.length; dy++) {
+        for (let dx = 0; dx < renderedPixels[dy].length; dx++) {
+          const xw = dx + xMin;
+          const yw = dy + yMin;
+          const renderedPixel = renderedPixels[dy][dx];
+          const dotRadius = viewOutline ? 0.35 : 0.5;
+
+          const rectFn = renderedPixel
+            ? ctx.fillRect.bind(ctx)
+            : viewOutline
+              ? ctx.strokeRect.bind(ctx)
+              : () => {};
+          rectFn(
             xw + 0.5 - dotRadius,
             yw + 0.5 - dotRadius,
             2 * dotRadius,
@@ -163,7 +210,29 @@ function App() {
     [viewOutline],
   );
 
-  const drawGlyphOnPixelGrid = useCallback(() => {
+  const drawGlyphOrigins = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      // Mark the origin of each glyph
+      for (const glyphOrigin of glyphOrigins) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 0.05;
+        ctx.beginPath();
+        ctx.ellipse(
+          glyphOrigin.x,
+          glyphOrigin.y,
+          0.15,
+          0.15,
+          0,
+          0,
+          2 * Math.PI,
+        );
+        ctx.stroke();
+      }
+    },
+    [glyphOrigins],
+  );
+
+  const drawAllGlyphs = useCallback(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (ctx == null || fontData == null) return;
 
@@ -172,42 +241,37 @@ function App() {
     ctx.resetTransform();
     ctx.scale(PIXEL_GRID_SCALE, PIXEL_GRID_SCALE);
 
-    if (!fontRenderers.length) return;
-
-    for (let ci = 0; ci < text.length; ci++) {
-      const renderer = fontRenderers[ci];
-      const glyph = glyphs[ci];
-      const processedContours = renderResults[ci].processedContours;
-      const windingNumbers = renderResults[ci].windingNumbers;
+    for (let ci = 0; ci < renderResults.length; ci++) {
+      const renderResult = renderResults[ci];
+      if (renderResult == null) continue;
+      const {
+        transformedPoints,
+        processedContours,
+        renderedPixels,
+        xMin,
+        yMin,
+      } = renderResult;
       if (viewOutline) {
-        drawGlyph(ctx, processedContours);
+        drawGlyphOutline(ctx, transformedPoints, processedContours);
       }
-      if (viewPixels && glyph != null) {
-        drawPixelGrid(ctx, glyph, windingNumbers, renderer);
+      if (viewPixels) {
+        drawGlyphPixels(ctx, renderedPixels, xMin, yMin);
       }
+      drawGlyphOrigins(ctx);
     }
-
-    // Mark the origin of the first glyph
-    const originW = fontRenderers[0].glyphCoordToRenderCoord(Vector2.ZERO);
-    ctx.strokeStyle = "red";
-    ctx.fillStyle = "red";
-    ctx.lineWidth = 0.03;
-    ctx.strokeRect(originW.x - 0.1, originW.y - 0.1, 0.2, 0.2);
   }, [
-    drawGlyph,
-    drawPixelGrid,
+    drawGlyphOrigins,
+    drawGlyphOutline,
+    drawGlyphPixels,
     fontData,
-    fontRenderers,
-    glyphs,
     renderResults,
-    text.length,
     viewOutline,
     viewPixels,
   ]);
 
   useEffect(() => {
-    drawGlyphOnPixelGrid();
-  }, [drawGlyphOnPixelGrid]);
+    drawAllGlyphs();
+  }, [drawAllGlyphs]);
 
   const Settings = (
     <div className="w-80 overflow-hidden border-2 rounded border-border text-foreground font-semibold">
@@ -252,7 +316,18 @@ function App() {
           />
         </Labeled>
 
-        <Labeled label="View Mode">
+        <Labeled label="Font Size">
+          <Slider
+            min={6}
+            max={96}
+            step={1}
+            value={fontSize}
+            format={(x) => `${x}px`}
+            onValueChange={(value) => setFontSize(value)}
+          />
+        </Labeled>
+
+        <Labeled label="View">
           <Select
             value={viewMode}
             onChange={(value) =>
@@ -265,33 +340,28 @@ function App() {
             ]}
           />
         </Labeled>
-
-        <Toggle
-          label={"Draw curves"}
-          checked={drawCurves}
-          onCheckedChange={(checked) => setDrawCurves(checked)}
-        />
-
-        {drawCurves && (
-          <Labeled label="De Casteljau Iterations">
-            <Slider
-              min={0}
-              max={3}
-              step={1}
-              value={decasteljauIters}
-              onValueChange={(value) => setDecasteljauIters(value)}
+        {viewMode === "outline" && (
+          <Labeled label="View Contour Points">
+            <Select
+              options={[
+                { name: "Original", value: "original" },
+                { name: "Processed", value: "processed" },
+              ]}
+              value={viewContourPointsType}
+              onChange={(v) => {
+                setViewContourPointsType(v as "original" | "processed");
+              }}
             />
           </Labeled>
         )}
 
-        <Labeled label="Font Size">
+        <Labeled label="Max subdivisions">
           <Slider
-            min={6}
-            max={96}
+            min={0}
+            max={10}
             step={1}
-            value={fontSize}
-            format={(x) => `${x}px`}
-            onValueChange={(value) => setFontSize(value)}
+            value={maxSubdivisions}
+            onValueChange={(value) => setMaxSubdivisions(value)}
           />
         </Labeled>
         <div className="grid grid-cols-[64px_1fr] gap-y-2">
@@ -333,14 +403,14 @@ function App() {
             const rect = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
             const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
-            setPixelGridOrigin({ x, y });
+            setFirstGlyphOrigin({ x, y });
           }}
           onPointerMove={(e) => {
             if (!isDragging) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const x = (e.clientX - rect.left) / PIXEL_GRID_SCALE;
             const y = (e.clientY - rect.top) / PIXEL_GRID_SCALE;
-            setPixelGridOrigin({ x, y });
+            setFirstGlyphOrigin({ x, y });
           }}
           onPointerUp={(e) => {
             setIsDragging(false);

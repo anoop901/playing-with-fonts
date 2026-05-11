@@ -37,9 +37,9 @@ function App() {
   const [viewMode, setViewMode] = useState<"outline" | "pixels" | "both">(
     "both",
   );
-  const [viewOriginalContourPoints, setViewOriginalContourPoints] =
-    useState(true);
-
+  const [viewContourPointsType, setViewContourPointsType] = useState<
+    "original" | "processed"
+  >("original");
   const viewOutline = viewMode == "outline" || viewMode == "both";
   const viewPixels = viewMode == "pixels" || viewMode == "both";
 
@@ -140,7 +140,7 @@ function App() {
       ctx.stroke();
 
       if (!viewPixels) {
-        if (viewOriginalContourPoints) {
+        if (viewContourPointsType === "original") {
           for (const pt of transformedPoints) {
             ctx.fillStyle = pt.onCurve
               ? CONTOUR_POINT_ON_CURVE_COLOR
@@ -167,7 +167,7 @@ function App() {
         }
       }
     },
-    [viewOriginalContourPoints, viewPixels],
+    [viewContourPointsType, viewPixels],
   );
 
   const drawGlyphPixels = useCallback(
@@ -322,7 +322,7 @@ function App() {
           />
         </Labeled>
 
-        <Labeled label="View Mode">
+        <Labeled label="View">
           <Select
             value={viewMode}
             onChange={(value) =>
@@ -334,14 +334,21 @@ function App() {
               { name: "Both", value: "both" },
             ]}
           />
-          {viewMode == "outline" && (
-            <Toggle
-              label={"View original contour points"}
-              checked={viewOriginalContourPoints}
-              onCheckedChange={setViewOriginalContourPoints}
-            />
-          )}
         </Labeled>
+        {viewMode === "outline" && (
+          <Labeled label="View Contour Points">
+            <Select
+              options={[
+                { name: "Original", value: "original" },
+                { name: "Processed", value: "processed" },
+              ]}
+              value={viewContourPointsType}
+              onChange={(v) => {
+                setViewContourPointsType(v);
+              }}
+            />
+          </Labeled>
+        )}
 
         <Labeled label="Max subdivisions">
           <Slider

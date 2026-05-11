@@ -10,17 +10,44 @@ type RenderedEdge = {
 
 // ─── Curve helpers ────────────────────────────────────────────────────────────
 
-function decasteljauSplitQuadBezier(
+function decasteljauRecursiveSplitQuadBezier(
   pt1: Vector2,
   anchor: Vector2,
   pt2: Vector2,
-) {
+  maxSubdivisions: number = 10,
+  threshold: number = 1,
+): {
+  pt1: Vector2;
+  anchor: Vector2;
+  pt2: Vector2;
+}[] {
+  if (maxSubdivisions === 0) {
+    return [{ pt1, anchor, pt2 }];
+  }
+  const v = pt1.subtract(pt2);
+  const dx = v.x;
+  const dy = v.y;
+  if (Math.abs(dx) + Math.abs(dy) < threshold) {
+    return [{ pt1, anchor, pt2 }];
+  }
   const mid1Anchor = pt1.midpoint(anchor);
   const mid2Anchor = pt2.midpoint(anchor);
   const bezierMidpoint = mid1Anchor.midpoint(mid2Anchor);
   return [
-    { pt1: pt1, anchor: mid1Anchor, pt2: bezierMidpoint },
-    { pt1: bezierMidpoint, anchor: mid2Anchor, pt2: pt2 },
+    ...decasteljauRecursiveSplitQuadBezier(
+      pt1,
+      mid1Anchor,
+      bezierMidpoint,
+      maxSubdivisions - 1,
+      threshold,
+    ),
+    ...decasteljauRecursiveSplitQuadBezier(
+      bezierMidpoint,
+      mid2Anchor,
+      pt2,
+      maxSubdivisions - 1,
+      threshold,
+    ),
   ];
 }
 
@@ -44,7 +71,10 @@ function insertImpliedOnCurvePoints(pointsInContour: PointOnContour[]) {
 // For each off-curve point, insert an on-curve point corresponding to t=0.5,
 // and two new off-curve points around it that split the curve in two at this point.
 // Returns a new array, and leaves the input unmodified.
-function interpolateContour(pointsInContour: PointOnContour[]) {
+function interpolateContour(
+  pointsInContour: PointOnContour[],
+  maxSubdivisions: number,
+) {
   const pointsInContourInterpolated = [];
   for (let i = 0; i < pointsInContour.length; i++) {
     const pt = pointsInContour[i];
@@ -54,19 +84,26 @@ function interpolateContour(pointsInContour: PointOnContour[]) {
           (i - 1 + pointsInContour.length) % pointsInContour.length
         ].vec;
       const nextPtV = pointsInContour[(i + 1) % pointsInContour.length].vec;
-      const subBeziers = decasteljauSplitQuadBezier(lastPtV, pt.vec, nextPtV);
+      const subBeziers = decasteljauRecursiveSplitQuadBezier(
+        lastPtV,
+        pt.vec,
+        nextPtV,
+        maxSubdivisions,
+      );
       pointsInContourInterpolated.push({
         onCurve: false,
         vec: subBeziers[0].anchor,
       });
-      pointsInContourInterpolated.push({
-        onCurve: true,
-        vec: subBeziers[0].pt2,
-      });
-      pointsInContourInterpolated.push({
-        onCurve: false,
-        vec: subBeziers[1].anchor,
-      });
+      for (let j = 0; j < subBeziers.length; j++) {
+        pointsInContourInterpolated.push({
+          onCurve: true,
+          vec: subBeziers[j].pt1,
+        });
+        pointsInContourInterpolated.push({
+          onCurve: false,
+          vec: subBeziers[j].anchor,
+        });
+      }
     } else {
       pointsInContourInterpolated.push(pt);
     }
@@ -260,7 +297,7 @@ export function renderGlyph(
   fontSize: number,
   unitsPerEm: number,
   renderSize: Vector2,
-  decasteljauIters: number = 3,
+  maxSubdivisions: number = 3,
 ) {
   const transformedPoints = transformPoints(
     glyph,
@@ -271,9 +308,7 @@ export function renderGlyph(
   const contours = splitPointsIntoContours(transformedPoints, glyph);
   const processedContours = contours.map((contour) => {
     contour = insertImpliedOnCurvePoints(contour);
-    for (let i = 0; i < decasteljauIters; i++) {
-      contour = interpolateContour(contour);
-    }
+    contour = interpolateContour(contour, maxSubdivisions);
     return contour.filter((pt) => pt.onCurve).map((pt) => pt.vec);
   });
   const { renderedPixels, xMin, yMin } = processedContoursToRenderedPixels(

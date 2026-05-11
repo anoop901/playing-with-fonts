@@ -16,8 +16,8 @@ export default function Toggle({
           onChange={(e) => onCheckedChange(e.currentTarget.checked)}
           className="sr-only peer"
         />
-        <div className="w-9 h-5 bg-primary-weak rounded-full peer-checked:bg-primary transition-colors" />
-        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
+        <div className="w-9 h-5 bg-primary-weak rounded-full peer-checked:bg-primary transition" />
+        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4" />
       </div>
       <span className="select-none">{label}</span>
     </label>

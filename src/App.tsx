@@ -22,6 +22,7 @@ import Input from "./components/Input";
 import Select from "./components/Select";
 import Labeled from "./components/Labeled";
 import Slider from "./components/Slider";
+import Toggle from "./components/Toggle";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,6 +37,8 @@ function App() {
   const [viewMode, setViewMode] = useState<"outline" | "pixels" | "both">(
     "both",
   );
+  const [viewOriginalContourPoints, setViewOriginalContourPoints] =
+    useState(true);
 
   const viewOutline = viewMode == "outline" || viewMode == "both";
   const viewPixels = viewMode == "pixels" || viewMode == "both";
@@ -61,7 +64,7 @@ function App() {
   }, [fileData]);
   const [text, setText] = useState<string>("Hello");
   const [fontSize, setFontSize] = useState<number>(FONT_SIZE);
-  const [decasteljauIters, setDecasteljauIters] = useState<number>(1);
+  const [maxSubdivisions, setMaxSubdivisions] = useState<number>(10);
 
   const glyphs = useMemo(() => {
     if (!fontData) return [];
@@ -101,10 +104,10 @@ function App() {
         fontSize,
         fontData.unitsPerEm,
         new Vector2(PIXEL_GRID_SIZE, PIXEL_GRID_SIZE),
-        decasteljauIters,
+        maxSubdivisions,
       );
     });
-  }, [glyphs, glyphOrigins, fontData, fontSize, decasteljauIters]);
+  }, [glyphs, glyphOrigins, fontData, fontSize, maxSubdivisions]);
 
   const drawGlyphOutline = useCallback(
     (
@@ -137,32 +140,34 @@ function App() {
       ctx.stroke();
 
       if (!viewPixels) {
-        // ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
-        // for (const contour of processedContours) {
-        //   for (const pt of contour) {
-        //     ctx.fillRect(
-        //       pt.x - CONTOUR_POINT_RADIUS,
-        //       pt.y - CONTOUR_POINT_RADIUS,
-        //       2 * CONTOUR_POINT_RADIUS,
-        //       2 * CONTOUR_POINT_RADIUS,
-        //     );
-        //   }
-        // }
-
-        for (const pt of transformedPoints) {
-          ctx.fillStyle = pt.onCurve
-            ? CONTOUR_POINT_ON_CURVE_COLOR
-            : CONTOUR_POINT_OFF_CURVE_COLOR;
-          ctx.fillRect(
-            pt.vec.x - CONTOUR_POINT_RADIUS,
-            pt.vec.y - CONTOUR_POINT_RADIUS,
-            2 * CONTOUR_POINT_RADIUS,
-            2 * CONTOUR_POINT_RADIUS,
-          );
+        if (viewOriginalContourPoints) {
+          for (const pt of transformedPoints) {
+            ctx.fillStyle = pt.onCurve
+              ? CONTOUR_POINT_ON_CURVE_COLOR
+              : CONTOUR_POINT_OFF_CURVE_COLOR;
+            ctx.fillRect(
+              pt.vec.x - CONTOUR_POINT_RADIUS,
+              pt.vec.y - CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+              2 * CONTOUR_POINT_RADIUS,
+            );
+          }
+        } else {
+          ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
+          for (const contour of processedContours) {
+            for (const pt of contour) {
+              ctx.fillRect(
+                pt.x - CONTOUR_POINT_RADIUS,
+                pt.y - CONTOUR_POINT_RADIUS,
+                2 * CONTOUR_POINT_RADIUS,
+                2 * CONTOUR_POINT_RADIUS,
+              );
+            }
+          }
         }
       }
     },
-    [viewPixels],
+    [viewOriginalContourPoints, viewPixels],
   );
 
   const drawGlyphPixels = useCallback(
@@ -207,8 +212,16 @@ function App() {
         ctx.strokeStyle = "red";
         ctx.lineWidth = 0.05;
         ctx.beginPath();
-        ctx.ellipse(glyphOrigin.x, glyphOrigin.y, 0.15, 0.15, 0, 0, 2 * Math.PI);
-        ctx.stroke()
+        ctx.ellipse(
+          glyphOrigin.x,
+          glyphOrigin.y,
+          0.15,
+          0.15,
+          0,
+          0,
+          2 * Math.PI,
+        );
+        ctx.stroke();
       }
     },
     [glyphOrigins],
@@ -298,6 +311,17 @@ function App() {
           />
         </Labeled>
 
+        <Labeled label="Font Size">
+          <Slider
+            min={6}
+            max={96}
+            step={1}
+            value={fontSize}
+            format={(x) => `${x}px`}
+            onValueChange={(value) => setFontSize(value)}
+          />
+        </Labeled>
+
         <Labeled label="View Mode">
           <Select
             value={viewMode}
@@ -310,26 +334,22 @@ function App() {
               { name: "Both", value: "both" },
             ]}
           />
+          {viewMode == "outline" && (
+            <Toggle
+              label={"View original contour points"}
+              checked={viewOriginalContourPoints}
+              onCheckedChange={setViewOriginalContourPoints}
+            />
+          )}
         </Labeled>
 
-        <Labeled label="De Casteljau Iterations">
+        <Labeled label="Max subdivisions">
           <Slider
             min={0}
-            max={3}
+            max={10}
             step={1}
-            value={decasteljauIters}
-            onValueChange={(value) => setDecasteljauIters(value)}
-          />
-        </Labeled>
-
-        <Labeled label="Font Size">
-          <Slider
-            min={6}
-            max={96}
-            step={1}
-            value={fontSize}
-            format={(x) => `${x}px`}
-            onValueChange={(value) => setFontSize(value)}
+            value={maxSubdivisions}
+            onValueChange={(value) => setMaxSubdivisions(value)}
           />
         </Labeled>
       </div>

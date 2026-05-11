@@ -169,31 +169,17 @@ function transformPoints(
   }));
 }
 
-function buildProcessedContours(
+function splitPointsIntoContours(
+  points: PointOnContour[],
   glyph: GlyphData,
-  transformedPoints: PointOnContour[],
-  decasteljauIters: number,
-): Vector2[][] {
+): PointOnContour[][] {
   let startPointIndex = 0;
   const pointsSplitByContour = [];
   for (const contour of glyph.contours) {
-    pointsSplitByContour.push(
-      transformedPoints.slice(startPointIndex, contour + 1),
-    );
+    pointsSplitByContour.push(points.slice(startPointIndex, contour + 1));
     startPointIndex = contour + 1;
   }
-
-  const processedContours = [];
-  for (let pointsInContour of pointsSplitByContour) {
-    pointsInContour = insertImpliedOnCurvePoints(pointsInContour);
-    for (let i = 0; i < decasteljauIters; i++) {
-      pointsInContour = interpolateContour(pointsInContour);
-    }
-    processedContours.push(
-      pointsInContour.filter((pt) => pt.onCurve).map((pt) => pt.vec),
-    );
-  }
-  return processedContours;
+  return pointsSplitByContour;
 }
 
 function processedContoursToRenderedPixels(
@@ -282,11 +268,14 @@ export function renderGlyph(
     fontSize,
     unitsPerEm,
   );
-  const processedContours = buildProcessedContours(
-    glyph,
-    transformedPoints,
-    decasteljauIters,
-  );
+  const contours = splitPointsIntoContours(transformedPoints, glyph);
+  const processedContours = contours.map((contour) => {
+    contour = insertImpliedOnCurvePoints(contour);
+    for (let i = 0; i < decasteljauIters; i++) {
+      contour = interpolateContour(contour);
+    }
+    return contour.filter((pt) => pt.onCurve).map((pt) => pt.vec);
+  });
   const { renderedPixels, xMin, yMin } = processedContoursToRenderedPixels(
     processedContours,
     renderSize,

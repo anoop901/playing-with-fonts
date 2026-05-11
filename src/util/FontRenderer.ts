@@ -88,6 +88,48 @@ function processedContoursToEdges(
   return edges;
 }
 
+type BBox = {
+  topLeft: Vector2;
+  bottomRight: Vector2;
+};
+
+function computeBbox(
+  contour: Vector2[],
+  rounded: boolean = false,
+  clampBoundary?: BBox,
+): BBox {
+  let xMin = Infinity,
+    xMax = -Infinity;
+  let yMin = Infinity,
+    yMax = -Infinity;
+  for (const pt of contour) {
+    xMin = Math.min(xMin, pt.x);
+    xMax = Math.max(xMax, pt.x);
+    yMin = Math.min(yMin, pt.y);
+    yMax = Math.max(yMax, pt.y);
+  }
+
+  if (rounded) {
+    // Snap to integer pixel boundaries, clamped to the render area
+    xMin = Math.floor(xMin);
+    xMax = Math.ceil(xMax);
+    yMin = Math.floor(yMin);
+    yMax = Math.ceil(yMax);
+  }
+
+  if (clampBoundary != null) {
+    xMin = clamp(xMin, clampBoundary.topLeft.x, clampBoundary.bottomRight.x);
+    xMax = clamp(xMax, clampBoundary.topLeft.x, clampBoundary.bottomRight.x);
+    yMin = clamp(yMin, clampBoundary.topLeft.y, clampBoundary.bottomRight.y);
+    yMax = clamp(yMax, clampBoundary.topLeft.y, clampBoundary.bottomRight.y);
+  }
+
+  return {
+    topLeft: new Vector2(xMin, yMin),
+    bottomRight: new Vector2(xMax, yMax),
+  };
+}
+
 // ─── Coordinate transform ─────────────────────────────────────────────────────
 
 function glyphCoordToRenderCoord(
@@ -167,27 +209,17 @@ function processedContoursToRenderedPixels(
     return { windingNumbers: [], renderedPixels: [], xMin: 0, yMin: 0 };
   }
 
-  // Compute the bounding box of all edge endpoints in pixel space
-  let bboxXMin = Infinity,
-    bboxXMax = -Infinity;
-  let bboxYMin = Infinity,
-    bboxYMax = -Infinity;
-  for (const contour of processedContours) {
-    for (const pt of contour) {
-      bboxXMin = Math.min(bboxXMin, pt.x);
-      bboxXMax = Math.max(bboxXMax, pt.x);
-      bboxYMin = Math.min(bboxYMin, pt.y);
-      bboxYMax = Math.max(bboxYMax, pt.y);
-    }
-  }
+  // Compute bounding box of all the points (rounded to integer)
+  const bbox = computeBbox(processedContours.flat(2), true, {
+    topLeft: new Vector2(0, 0),
+    bottomRight: renderSize,
+  });
+  const xMin = bbox.topLeft.x;
+  const xMax = bbox.bottomRight.x;
+  const yMin = bbox.topLeft.y;
+  const yMax = bbox.bottomRight.y;
 
   const edges = processedContoursToEdges(processedContours);
-
-  // Snap to integer pixel boundaries, clamped to the render area
-  const xMin = clamp(Math.floor(bboxXMin), 0, renderSize.x);
-  const xMax = clamp(Math.ceil(bboxXMax), 0, renderSize.x);
-  const yMin = clamp(Math.floor(bboxYMin), 0, renderSize.y);
-  const yMax = clamp(Math.ceil(bboxYMax), 0, renderSize.y);
 
   // Allocate the subgrid that contains the glyph
   const windingNumbers: number[][] = Array.from({ length: yMax - yMin }, () =>

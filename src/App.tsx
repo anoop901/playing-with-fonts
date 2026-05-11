@@ -15,7 +15,7 @@ import {
 } from "./constants";
 import Button from "./components/Button";
 import parseFontData, { type PointOnContour } from "./parseFontFile";
-import defaultFontUrl from "./assets/Georgia.ttf";
+import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { advanceOriginPastGlyph, renderGlyph } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
 import Input from "./components/Input";

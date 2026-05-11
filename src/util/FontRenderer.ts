@@ -154,8 +154,8 @@ function buildProcessedContours(
   return processedContours;
 }
 
-function edgesToRenderedPixels(
-  edges: RenderedEdge[],
+function processedContoursToRenderedPixels(
+  processedContours: Vector2[][],
   renderSize: Vector2,
 ): {
   windingNumbers: number[][];
@@ -163,7 +163,7 @@ function edgesToRenderedPixels(
   xMin: number;
   yMin: number;
 } {
-  if (edges.length === 0) {
+  if (processedContours.length === 0) {
     return { windingNumbers: [], renderedPixels: [], xMin: 0, yMin: 0 };
   }
 
@@ -172,12 +172,16 @@ function edgesToRenderedPixels(
     bboxXMax = -Infinity;
   let bboxYMin = Infinity,
     bboxYMax = -Infinity;
-  for (const edge of edges) {
-    bboxXMin = Math.min(bboxXMin, edge.from.x, edge.to.x);
-    bboxXMax = Math.max(bboxXMax, edge.from.x, edge.to.x);
-    bboxYMin = Math.min(bboxYMin, edge.from.y, edge.to.y);
-    bboxYMax = Math.max(bboxYMax, edge.from.y, edge.to.y);
+  for (const contour of processedContours) {
+    for (const pt of contour) {
+      bboxXMin = Math.min(bboxXMin, pt.x);
+      bboxXMax = Math.max(bboxXMax, pt.x);
+      bboxYMin = Math.min(bboxYMin, pt.y);
+      bboxYMax = Math.max(bboxYMax, pt.y);
+    }
   }
+
+  const edges = processedContoursToEdges(processedContours);
 
   // Snap to integer pixel boundaries, clamped to the render area
   const xMin = clamp(Math.floor(bboxXMin), 0, renderSize.x);
@@ -251,9 +255,8 @@ export function renderGlyph(
     transformedPoints,
     decasteljauIters,
   );
-  const edges = processedContoursToEdges(processedContours);
-  const { renderedPixels, xMin, yMin } = edgesToRenderedPixels(
-    edges,
+  const { renderedPixels, xMin, yMin } = processedContoursToRenderedPixels(
+    processedContours,
     renderSize,
   );
   return { transformedPoints, processedContours, renderedPixels, xMin, yMin };

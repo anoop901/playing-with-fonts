@@ -11,9 +11,10 @@ import {
   CONTOUR_POINT_ON_CURVE_COLOR,
   CONTOUR_POINT_RADIUS,
   CONTOUR_LINE_WIDTH,
+  CONTOUR_POINT_OFF_CURVE_COLOR,
 } from "./constants";
 import Button from "./components/Button";
-import parseFontData from "./parseFontFile";
+import parseFontData, { type PointOnContour } from "./parseFontFile";
 import defaultFontUrl from "./assets/NotoSans-Regular.ttf";
 import { advanceOriginPastGlyph, renderGlyph } from "./util/FontRenderer";
 import { Vector2 } from "./util/Vector2";
@@ -106,7 +107,11 @@ function App() {
   }, [glyphs, glyphOrigins, fontData, fontSize, decasteljauIters]);
 
   const drawGlyphOutline = useCallback(
-    (ctx: CanvasRenderingContext2D, processedContours: Vector2[][]) => {
+    (
+      ctx: CanvasRenderingContext2D,
+      transformedPoints: PointOnContour[],
+      processedContours: Vector2[][],
+    ) => {
       ctx.beginPath();
 
       for (let c = 0; c < processedContours.length; c++) {
@@ -132,16 +137,28 @@ function App() {
       ctx.stroke();
 
       if (!viewPixels) {
-        ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
-        for (const contour of processedContours) {
-          for (const pt of contour) {
-            ctx.fillRect(
-              pt.x - CONTOUR_POINT_RADIUS,
-              pt.y - CONTOUR_POINT_RADIUS,
-              2 * CONTOUR_POINT_RADIUS,
-              2 * CONTOUR_POINT_RADIUS,
-            );
-          }
+        // ctx.fillStyle = CONTOUR_POINT_ON_CURVE_COLOR;
+        // for (const contour of processedContours) {
+        //   for (const pt of contour) {
+        //     ctx.fillRect(
+        //       pt.x - CONTOUR_POINT_RADIUS,
+        //       pt.y - CONTOUR_POINT_RADIUS,
+        //       2 * CONTOUR_POINT_RADIUS,
+        //       2 * CONTOUR_POINT_RADIUS,
+        //     );
+        //   }
+        // }
+
+        for (const pt of transformedPoints) {
+          ctx.fillStyle = pt.onCurve
+            ? CONTOUR_POINT_ON_CURVE_COLOR
+            : CONTOUR_POINT_OFF_CURVE_COLOR;
+          ctx.fillRect(
+            pt.vec.x - CONTOUR_POINT_RADIUS,
+            pt.vec.y - CONTOUR_POINT_RADIUS,
+            2 * CONTOUR_POINT_RADIUS,
+            2 * CONTOUR_POINT_RADIUS,
+          );
         }
       }
     },
@@ -187,9 +204,11 @@ function App() {
     (ctx: CanvasRenderingContext2D) => {
       // Mark the origin of the first glyph
       for (const glyphOrigin of glyphOrigins) {
-        ctx.fillStyle = "red";
+        ctx.strokeStyle = "red";
         ctx.lineWidth = 0.05;
-        ctx.fillRect(glyphOrigin.x - 0.1, glyphOrigin.y - 0.1, 0.2, 0.2);
+        ctx.beginPath();
+        ctx.ellipse(glyphOrigin.x, glyphOrigin.y, 0.15, 0.15, 0, 0, 2 * Math.PI);
+        ctx.stroke()
       }
     },
     [glyphOrigins],
@@ -207,9 +226,15 @@ function App() {
     for (let ci = 0; ci < renderResults.length; ci++) {
       const renderResult = renderResults[ci];
       if (renderResult == null) continue;
-      const { processedContours, renderedPixels, xMin, yMin } = renderResult;
+      const {
+        transformedPoints,
+        processedContours,
+        renderedPixels,
+        xMin,
+        yMin,
+      } = renderResult;
       if (viewOutline) {
-        drawGlyphOutline(ctx, processedContours);
+        drawGlyphOutline(ctx, transformedPoints, processedContours);
       }
       if (viewPixels) {
         drawGlyphPixels(ctx, renderedPixels, xMin, yMin);

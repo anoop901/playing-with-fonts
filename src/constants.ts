@@ -6,7 +6,7 @@ export const FONT_SIZE = 18;
 
 export const CANVAS_SIZE = 960;
 
-export const CONTOUR_POINT_OFF_CURVE_COLOR = "#880000";
+export const CONTOUR_POINT_OFF_CURVE_COLOR = "oklch(64.6% 0.222 41.116)";
 export const CONTOUR_POINT_ON_CURVE_COLOR = "oklch(44.3% 0.11 240.79)"; // sky-800
 export const CONTOUR_POINT_RADIUS = 0.15;
 export const CONTOUR_LINE_WIDTH = 0.1;

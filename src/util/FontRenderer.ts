@@ -256,7 +256,7 @@ export function renderGlyph(
     edges,
     renderSize,
   );
-  return { processedContours, renderedPixels, xMin, yMin };
+  return { transformedPoints, processedContours, renderedPixels, xMin, yMin };
 }
 
 export function advanceOriginPastGlyph(
